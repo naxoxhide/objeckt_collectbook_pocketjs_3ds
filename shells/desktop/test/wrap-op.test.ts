@@ -5,7 +5,7 @@
 // column-for-column — this is the parity that lets apps use the op when
 // present and the JS rules when not, without the layout ever moving.
 //
-// Runs on the wasm core with system-ui's committed W95FA atlas (slot 19) — the
+// Runs on the wasm core with system-ui's generated W95FA atlas (slot 19) — the
 // real consumer's font, spaces and CJK-free ASCII plus over-wide tokens.
 
 import { beforeAll, describe, expect, test } from "bun:test";
@@ -13,6 +13,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createWasmUi } from "../../../vendor/pocketjs/hosts/web/wasm-ops.js";
 import { segsFromBreaks, wrapLine } from "../src/system-ui/notepad.ts";
+import { prepareAssets } from "../scripts/prepare-assets.ts";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 const WASM_PATH = join(ROOT, "../../vendor/pocketjs/hosts/web/pocketjs.wasm");
@@ -31,6 +32,7 @@ let ops: {
 };
 
 beforeAll(async () => {
+  await prepareAssets();
   ensureBuilt(WASM_PATH, [process.execPath, "../../vendor/pocketjs/tools/wasm.ts"]);
   const wasm = await createWasmUi(await Bun.file(WASM_PATH).arrayBuffer());
   ops = {

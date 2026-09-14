@@ -1,11 +1,9 @@
 # Portable renderer and text experiment
 
 Pocket Shell Desktop's System UI and installed demo bundles use SolidJS. The
-experimental framework implementation is pinned directly by `vendor/pocketjs`.
-All runtime imports stay under `@pocketjs/framework/*`. [PocketJS PR #390](https://github.com/pocket-stack/pocketjs/pull/390)
-provides the runtime/text migration and [PR #399](https://github.com/pocket-stack/pocketjs/pull/399)
-adds native GPU composition; the product depends on the
-published framework commit until it is merged upstream.
+framework implementation is pinned by the root `vendor/pocketjs` submodule
+at merged commit `b5e2a274`. Runtime imports stay under
+`@pocketjs/framework/*`. Paths and commands below start at the repository root.
 
 ## Ownership
 
@@ -104,14 +102,14 @@ Build the portable engine and a package first:
 
 ```sh
 bun vendor/pocketjs/tools/text-wasm.ts
-bun run build
+bun run desktop build
 ```
 
 For a device with the paired LAN `io.offload` transport:
 
 ```sh
-bun run companion:text --address DEVICE_IP --key-file /path/to/pairing-key \
-  --pak dist/pocket-desktop-system-ui.pak
+bun run desktop companion:text --address DEVICE_IP --key-file /path/to/pairing-key \
+  --pak shells/desktop/dist/pocket-desktop-system-ui.pak
 ```
 
 The pairing key is the existing 256-bit device key. It is not logged. Only
@@ -136,16 +134,16 @@ a device boot ID and sequence. Old files and replies are rejected across
 restarts. There is no network listener or font engine on the PSP. Do not expose
 that trusted host0 root as a public share.
 
-## Validation and current scope
+## Validation commands and historical scope
 
 ```sh
-bun run check          # types, System UI rules, async simulator journeys, text/USB tests
-bun run test:rust      # native text, native worker, compositor and AppSupervisor tests
-bun run build          # macOS release host and all installed packages
-bun run test:web       # real Chrome journey and dist/web-smoke.png
+bun run desktop check          # types, System UI rules, async simulator journeys, text/USB tests
+bun run desktop test:rust      # native text, native worker, compositor and AppSupervisor tests
+bun run desktop build          # macOS release host and all installed packages
+bun run desktop test:web       # real Chrome journey and dist/web-smoke.png
 ```
 
-Validated locally: macOS release build and native first paint; native scripted
+The imported renderer work at `b5e2a274` recorded: macOS release build and native first paint; native scripted
 typing and autosave round-trip; Solid simulator
 editing/selection/undo, theme changes and surface focus; browser initialization
 and Hero raster composition; Rust/WASM text parity at multiple widths;
@@ -153,10 +151,9 @@ OpenType shaping with package font bytes; bounded and stale-revision rejection;
 reconnect; a real companion Worker through the USB packet adapter; PSP release
 build with the text-offload capability enabled.
 
-Linux has an updated CI build/package/launch path and has not been run locally
-on this macOS machine. PSP physical pairing, input latency and frame-rate
+Linux build/package/launch is checked in CI. PSP physical pairing, input latency and frame-rate
 acceptance are still hardware checks. The checked-in August benchmark predates
-this renderer. The three theme screenshots were regenerated with `bun run
+this renderer. The three theme screenshots were regenerated with `bun run desktop
 capture` using the actual Rust WASM text engine between simulator frames;
 `dist/web-smoke.png` is the current automated browser receipt.
 
@@ -169,13 +166,13 @@ The avoidable cost came from sequential whole-document upload requests. This
 measurement excludes OS input delivery and final window rendering; bulk initial
 uploads and multi-page results still have additional frame latency.
 
-Raw measurements and the exact input are in `docs/bench/text-offload-latency.json`
-and `docs/bench/text-offload-welcome.txt`. Reproduce the optimized path after a
+The 2026-09-08 measurements and exact input are retained in [the dated measurements](bench/text-offload-latency.json)
+and [their exact input](bench/text-offload-welcome.txt). Reproduce the optimized path after a
 native product build:
 
 ```sh
-bun vendor/pocketjs/tools/text-latency.ts --pak dist/pocket-desktop-system-ui.pak \
-  --slot 19 --document docs/bench/text-offload-welcome.txt
+bun vendor/pocketjs/tools/text-latency.ts --pak shells/desktop/dist/pocket-desktop-system-ui.pak \
+  --slot 19 --document shells/desktop/docs/bench/text-offload-welcome.txt
 ```
 
 The browser preview keeps its logical/backing canvas at 800×600 and presents

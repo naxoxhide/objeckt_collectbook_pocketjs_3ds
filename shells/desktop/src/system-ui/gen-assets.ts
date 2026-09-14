@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // src/system-ui/gen-assets.ts — bakes W95FA (assets/fonts/W95FA.otf, OFL; the
 // FontsArena Win95 MS Sans Serif recreation) into per-app FONT ATLAS blobs,
-// committed under src/system-ui/fonts/ and spliced by pak.json:
+// generated under ignored src/system-ui/fonts/ and spliced by pak.json:
 //
 //   bun src/system-ui/gen-assets.ts
 //
@@ -32,7 +32,7 @@
 // nonzero-winding guarantee this font's outlines depend on).
 
 import { parse as parseFont, type Font } from "opentype.js";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   bakeSlot,
@@ -46,6 +46,7 @@ import {
 
 const ROOT = new URL("../..", import.meta.url).pathname;
 const OUT = join(ROOT, "src/system-ui/fonts");
+rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
 const PHASE = 10; // measured x offset of the outline grid, font units

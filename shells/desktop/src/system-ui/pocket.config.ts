@@ -3,7 +3,7 @@
 // square-wave blink: 500 ms on, 500 ms off, hard edges. Long constant
 // segments keep the DrawList byte-stable between edges so the demand-
 // rendering host paints ~2 frames a second while the caret rests
-// (docs/BACKENDS.md governor discipline).
+// when no input or other animation requests a new frame.
 import { definePocketConfig } from "@pocketjs/framework/config";
 
 export default definePocketConfig({

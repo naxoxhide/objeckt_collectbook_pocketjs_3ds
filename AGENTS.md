@@ -44,6 +44,13 @@ fonts retain their own licenses. See `LICENSING.md`.
   them that way: signals, input dispatch and animation live in `shells/3ds/src/store.ts`,
   and drawing lives in the `.tsx` files.
 
+## Assets
+
+Follow `docs/ASSETS.md`: generators and original inputs stay tracked; desktop
+SVGs and font atlases are ignored build outputs. Keep only media used by
+documentation or tests. New validation runs stay in ignored artifact folders.
+`bun run check:assets` enforces these boundaries as part of the main check.
+
 ## The loop
 
 ```sh

@@ -8,6 +8,7 @@ text is in [LICENSE](LICENSE).
 | Root tooling and documentation, 3DS and iPod code and original assets | GPL-3.0-or-later |
 | Imported desktop shell code, documentation and original assets | GPL-3.0-only |
 | PocketJS runtime submodule | MIT |
+| iPod virtual-pointer protocol XML | MIT notice embedded in the XML |
 | Third-party fonts and derived font atlases | Their accompanying font licenses |
 
 The desktop import retains the original GPL version grant. It is maintained

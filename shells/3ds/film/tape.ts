@@ -241,8 +241,4 @@ export interface Still {
 export const STILLS: readonly Still[] = [
   { name: "stage-dwindle", tape: "pocket-shell", frame: 48, caption: "three windows in the dwindle layout" },
   { name: "stage-scrolling", tape: "pocket-shell", frame: 112, caption: "the same windows in the scrolling layout" },
-  { name: "deck-chords", tape: "pocket-shell", frame: 60, caption: "the L chord map on the deck" },
-  { name: "stage-keysheet", tape: "pocket-shell", frame: 160, caption: "the key sheet on the stage" },
-  { name: "deck-launcher", tape: "pocket-shell", frame: 176, caption: "the launcher on the deck" },
-  { name: "applets", tape: "pocket-shell-applets", frame: 90, caption: "every applet open at once" },
 ];

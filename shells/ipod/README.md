@@ -1,7 +1,7 @@
 # Pocket Shell on the iPod touch
 
 An Omarchy companion on the iPod touch 4: a landscape touch surface that
-mirrors the desktop and drives it. Independent of the 3DS shell in `app/` —
+mirrors the desktop and drives it. Independent of the 3DS shell in `shells/3ds/` —
 they share this repository, its runtime submodule and its licence, and
 nothing else for now. **The iPod runs the PocketJS guest; a
 small daemon on the Omarchy machine mirrors Hyprland into snapshots and runs
@@ -9,13 +9,13 @@ the same commands the keyboard bindings run.** Nothing on the wire is a
 command string — the device names an action id or a row of Omarchy's own
 menu, the daemon looks it up.
 
-Licensed under the GNU General Public License v3.0 or later, like the rest
-of this repository (`../LICENSE`).
+Licensed under the GNU General Public License v3.0 or later. See the
+[repository licensing scopes](../../LICENSING.md).
 
 ```
  iPod touch 4 (480x320 landscape)      USB (usbmuxd)      Omarchy machine
  ┌────────────────────────────────┐    PKNT/TCP      ┌──────────────────────────┐
- │ ipod/ (Solid)                  │◀───────────────▶│ host/serve.ts (Node)     │
+ │ src/ (Solid)                   │◀───────────────▶│ host/serve.ts (Node)     │
  │ hosts/ios-legacy/svcwire.c    │  or WiFi+beacon  │  .socket.sock  requests  │
  └────────────────────────────────┘                  │  .socket2.sock events    │
                                                      │  omarchy-* / wtype       │
@@ -39,6 +39,19 @@ against a scripted desktop; the panel is 480x320.
 
 The stage is 260 px between the strip and the launch bar; the deck runs to
 the bottom edge.
+
+## Scripted interactions
+
+These simulator recordings use the same guest bundle as the device. Regenerate
+with `bun run omarchy films media` from the repository root.
+
+| Workspace switching | Hold and slide to tile |
+| --- | --- |
+| ![Switch workspaces](media/mirror.gif) | ![Tile a floating window](media/tile.gif) |
+
+| Omarchy menu navigation | Keyboard and trackpad deck |
+| --- | --- |
+| ![Open and navigate the menu](media/menu.gif) | ![Type and select a held key variant](media/deck.gif) |
 
 ## The screen
 

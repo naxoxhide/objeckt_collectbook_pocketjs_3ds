@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { prepareAssets } from "./prepare-assets.ts";
 import {
   DIST,
   PLAN_DIR,
@@ -37,6 +38,7 @@ export async function buildDesktopSystem(
   const dist = options.dist ?? DIST;
   const planDir = options.planDir ?? PLAN_DIR;
   const system = await resolveDesktopSystem(target);
+  await prepareAssets();
   mkdirSync(planDir, { recursive: true });
   mkdirSync(dist, { recursive: true });
   const packages = [system.systemUI, ...system.applications];

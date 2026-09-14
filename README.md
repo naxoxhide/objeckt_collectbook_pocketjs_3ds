@@ -37,7 +37,9 @@ vendor/
 ```
 
 The three shells have separate Bun packages and TypeScript configurations.
-Application code is separate; runtime APIs come from `@pocketjs/framework/*`.
+See the [asset policy and review](docs/ASSETS.md) for generated outputs,
+source inputs and retained documentation fixtures. Application code is separate;
+runtime APIs come from `@pocketjs/framework/*`.
 The 3DS shell remains specific to its two screens and physical controls.
 
 ## Development

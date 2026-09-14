@@ -560,7 +560,6 @@ async function shots(outDir: string): Promise<void> {
   shot("menu-trigger");
   tapRow("trigger.toggle");
   frames(20);
-  shot("menu-toggle");
   store.sheetBack();
   store.sheetBack();
   frames(20);

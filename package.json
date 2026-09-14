@@ -23,11 +23,12 @@
     "goldens": "bun run --cwd shells/3ds goldens",
     "typecheck": "bun vendor/pocketjs/node_modules/typescript/bin/tsc --noEmit && bun run --cwd shells/3ds typecheck && bun run --cwd shells/ipod typecheck && bun run --cwd shells/desktop typecheck",
     "test": "bun run --cwd shells/3ds test && bun run --cwd shells/ipod test && bun run --cwd shells/desktop test && bun run --cwd shells/desktop test:sim && bun run --cwd shells/desktop test:wrap && bun run --cwd shells/desktop test:text",
-    "check": "bun run typecheck && bun run test",
+    "check": "bun run check:assets && bun run typecheck && bun run test",
     "desktop": "bun scripts/desktop.ts",
     "check:3ds": "bun run --cwd shells/3ds check",
     "check:ipod": "bun run --cwd shells/ipod check",
-    "check:desktop": "bun run --cwd shells/desktop check"
+    "check:desktop": "bun run --cwd shells/desktop check",
+    "check:assets": "bun scripts/check-assets.ts"
   },
   "workspaces": [
     "shells/*"

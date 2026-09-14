@@ -90,7 +90,7 @@ Omarchy's 2 px active border (cyan to green), unfocused windows a grey one.
 
 ## Layouts
 
-Both layouts share the geometry constants in `app/wm.ts`: **`BAR_H` 14,
+Both layouts share the geometry constants in `src/wm.ts`: **`BAR_H` 14,
 `GAP_OUT` 4, `GAP_IN` 3, `BORDER` 2** — neighbours sit 6 px apart, the edge
 gap is 7 px. Omarchy's `gaps_in 5 / gaps_out 10 / border 2` at a 3.5" panel.
 
@@ -132,16 +132,16 @@ Five workspaces exist from boot; nothing is persisted across launches (the
 ## Files
 
 ```
-app/wm.ts         the window manager: pure state and geometry (tested)
-app/chords.ts     the modifier grammar as one table, plus its labels (tested)
-app/shell.ts      pocketsh, the command interpreter (tested)
-app/store.ts      signals, per-frame input dispatch, geometry animation, applet state
-app/stage.tsx     top screen: wallpaper, windows, bar, key sheet
-app/deck.tsx      touch screen: strip, minimap and its gestures, chord map, launcher, dock
-app/keyboard.tsx  the deck's hand-laid touch keyboard
-app/applets.tsx   term · clock · notes · keys · stats · about
-app/wall/         tokyo-night backgrounds in 512x256 envelopes (prepare.ts cooks them)
-app/images.json   bakes the wallpapers as PSM_5650
+src/wm.ts         the window manager: pure state and geometry (tested)
+src/chords.ts     the modifier grammar as one table, plus its labels (tested)
+src/shell.ts      pocketsh, the command interpreter (tested)
+src/store.ts      signals, per-frame input dispatch, geometry animation, applet state
+src/stage.tsx     top screen: wallpaper, windows, bar, key sheet
+src/deck.tsx      touch screen: strip, minimap and its gestures, chord map, launcher, dock
+src/keyboard.tsx  the deck's hand-laid touch keyboard
+src/applets.tsx   term · clock · notes · keys · stats · about
+src/wall/         tokyo-night backgrounds in 512x256 envelopes (prepare.ts cooks them)
+src/images.json   bakes the wallpapers as PSM_5650
 ```
 
 **Wallpapers are 400x240 crops padded into 512x256**: the pak compiler
@@ -181,7 +181,7 @@ the big time text changed by ~1600 px between consecutive frames; after the
 fix it changes by zero.
 
 So nothing here calls a `Date` breakdown method. `civilFromEpoch` in
-`app/shell.ts` derives the whole civil date and time from the epoch by
+`src/shell.ts` derives the whole civil date and time from the epoch by
 arithmetic, and the shell reads only that. The zone is sampled once at boot
 and accepted only if it looks like a real one (a whole quarter-hour within
 ±14 h); a console that reports nothing usable shows UTC, and **`tz +8` in

@@ -2,6 +2,7 @@
 import { renameSync } from "node:fs";
 import { resolve } from "node:path";
 import { POCKETJS_ROOT, ROOT } from "./system-plan.ts";
+import { prepareAssets } from "./prepare-assets.ts";
 
 // The PocketJS sim resolves bundles beside its WASM host. Keep this low-level
 // test artifact in the vendored dist directory; product builds still go to
@@ -13,6 +14,7 @@ const SIM_DIST = resolve(POCKETJS_ROOT, "dist");
 // arrives as upscaled 1x art.
 const density = process.argv.slice(2).find((a) => a.startsWith("--density="));
 
+await prepareAssets();
 const child = Bun.spawn(
   [
     process.execPath,

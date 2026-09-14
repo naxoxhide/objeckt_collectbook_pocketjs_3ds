@@ -89,6 +89,13 @@ font bytes, including on WASM. No system font discovery occurs.
 See [the text capability and companion contract](docs/PORTABLE-TEXT.md) for
 pairing, budgets, current limits and validation.
 
+## Assets
+
+Icons and 1×/2× font atlases are generated before native, browser and simulator
+builds. Only their generators and original font inputs are tracked. Use
+`bun run desktop assets` to rebuild them explicitly; see the
+[repository asset policy](../../docs/ASSETS.md).
+
 ## Build
 
 Run the commands below from the repository root. Build outputs and benchmark
@@ -168,6 +175,9 @@ Optional `--max-work-ms=16.7 --max-render-ms=3 --max-present-ms=3` checks apply
 p95 CPU budgets for the acceptance machine. A run with fewer than 320 of the
 340 measured drag frames fails, including when external input interrupts it.
 
+The [dated Aqua GPU comparison](docs/bench/aqua-gpu-2026-09-10.md) retains
+the measurements and their limits.
+
 ## Historical classic baseline benchmark
 
 The checked-in August baseline measures the previous gpui host and is not a
@@ -183,7 +193,8 @@ The benchmark records the native executable and complete installed System
 artifact sizes, ten process-cold/cache-warm launches from spawn to the first
 painted frame, and settled idle process-tree RSS plus macOS physical footprint.
 It writes the raw samples, machine identity, source revisions and a Markdown
-summary to `docs/bench/classic-<date>.{json,md}`. Use `--quick` for a three-run
+summary to `.pocket/bench/classic/<run>/classic-<date>.{json,md}`. Promote
+reviewed baselines into `docs/bench/` explicitly. Use `--quick` for a three-run
 smoke check; quick results cannot replace the checked-in baseline.
 
 Pass native-host script flags after `--`, for example:

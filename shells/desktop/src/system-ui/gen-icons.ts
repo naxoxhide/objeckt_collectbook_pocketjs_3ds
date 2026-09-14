@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // src/system-ui/gen-icons.ts — pixel-art icon source. ASCII grids compile to
-// crispEdges SVGs in src/system-ui/icons/ (committed; re-run on art changes):
+// crispEdges SVGs in src/system-ui/icons/ (ignored; rebuilt before packaging):
 //
 //   bun src/system-ui/gen-icons.ts
 //
@@ -11,7 +11,7 @@
 // rasterizes) further down. The build then rasterizes each SVG at the plan's
 // density like any other asset — no hand-baked PNGs.
 
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 const PAL: Record<string, string> = {
@@ -853,6 +853,7 @@ function face(kind: "smile" | "ooh" | "dead" | "cool"): string[] {
 }
 
 const outDir = join(import.meta.dir, "icons");
+rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 let count = 0;
 for (const icon of ICONS) {

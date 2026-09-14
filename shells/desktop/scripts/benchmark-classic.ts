@@ -33,7 +33,9 @@ const binary = resolve(
   "hosts/desktop/target/release/pocket-desktop-host",
 );
 const systemPlanPath = resolve(PLAN_DIR, "pocket-desktop.system.plan.json");
-const reportDir = resolve(ROOT, "docs/bench");
+// Measurements depend on this machine and run; promote a reviewed baseline
+// into docs/bench explicitly instead of committing every invocation.
+const reportDir = resolve(ROOT, ".pocket/bench/classic", new Date().toISOString().replaceAll(":", "-"));
 
 function sleep(ms: number): Promise<void> {
   return new Promise((done) => setTimeout(done, ms));

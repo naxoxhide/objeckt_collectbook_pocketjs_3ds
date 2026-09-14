@@ -2,6 +2,7 @@
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import { ROOT } from "./system-plan.ts";
+import { prepareAssets } from "./prepare-assets.ts";
 
 async function run(command: string[]): Promise<void> {
   const child = Bun.spawn(command, { cwd: ROOT, stdout: "inherit", stderr: "inherit" });
@@ -13,6 +14,9 @@ const preview = resolve(ROOT, "dist/web");
 const output = resolve(ROOT, "dist/site");
 if (!process.argv.includes("--reuse-preview")) {
   await run([process.execPath, resolve(ROOT, "scripts/web.ts"), "--build-only"]);
+} else {
+  // The preview can survive after its source-side generated assets are cleaned.
+  await prepareAssets();
 }
 if (!existsSync(resolve(preview, "index.html"))) {
   throw new Error("WASM preview is missing; run without --reuse-preview or build:web first");
