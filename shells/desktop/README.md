@@ -1,8 +1,8 @@
 # Pocket Shell Desktop
 
 Pocket Shell Desktop is the desktop OS shell in [Pocket Shell](../../README.md).
-It uses a Pocket System manifest that runs multiple isolated Pocket
-applications inside one native process. The entire System UI uses SolidJS and
+It runs multiple isolated Pocket applications inside one native process,
+using a Pocket System manifest. The entire System UI uses SolidJS and
 PocketJS's universal renderer. It owns windows, taskbar,
 application presentation and theme selection; PocketJS owns package
 resolution, AppInstance isolation, scheduling and native composition.
@@ -149,9 +149,10 @@ bun run desktop build:site
 bun run desktop test:site
 ```
 
-The retained site deployment configuration targets as Cloudflare Workers Static Assets at
-`desktop.pocketlab.build`. Moving the sources does not deploy the site. The checked-in Wrangler configuration owns its
-custom-domain route; `bun run desktop deploy:site` builds before publishing.
+The retained Wrangler configuration targets Cloudflare Workers Static Assets
+at `desktop.pocketlab.build` and owns its custom-domain route.
+`bun run desktop deploy:site` builds before publishing. Moving the sources
+does not deploy the site.
 
 Regenerate the checked-in theme screenshots from the deterministic PocketJS
 simulator with `bun run desktop capture`.

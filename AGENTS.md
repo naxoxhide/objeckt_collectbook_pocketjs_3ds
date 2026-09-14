@@ -14,7 +14,6 @@ to one of them:
   only makes sense on some other machine does not belong in it.
 - `shells/ipod/` — Pocket Shell on the iPod touch 4, an Omarchy companion (a guest
   app plus the daemon it talks to). Its own README carries the design.
-
 - `shells/desktop/` — the shell for desktop operating systems, imported from
   pocket-desktop. It owns windows, application presentation and themes.
   PocketJS owns package isolation, scheduling and native composition.
