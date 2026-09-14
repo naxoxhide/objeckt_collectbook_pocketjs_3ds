@@ -1,5 +1,7 @@
 node_modules/
 dist/
 .pocket/
+.pocket-build/
+.wrangler/
 .DS_Store
 *.log
