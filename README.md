@@ -9,6 +9,7 @@ shell owns its interface and input model.
 | --- | --- | --- |
 | Nintendo 3DS | Self-rendered tiling windows on the top screen; chords and touch controls on the lower screen | [shells/3ds](shells/3ds/README.md) |
 | iPod touch 4 | An Omarchy companion that mirrors and controls a desktop over USB or Wi-Fi | [shells/ipod](shells/ipod/README.md) |
+| Touch navigation | Portrait gesture navigation and six retained mock apps on iPod touch 4 | [shells/touch](shells/touch/README.md) |
 | Desktop OS | Windows, application launching and Classic 98, XP and Aqua themes on macOS and Linux, with a browser preview | [shells/desktop](shells/desktop/README.md) |
 
 The former **pocket-desktop** project is now the desktop OS shell in this
@@ -30,13 +31,14 @@ simulator renders. The desktop image is retained from the imported project.
 shells/
   3ds/       src, scripts, test, film, media, docs, manifest
   ipod/      src (guest + host daemon), scripts, test, media, manifest
+  touch/     src (gesture model and mock apps), scripts, test, manifest
   desktop/   src/system-ui, scripts, test, assets, docs, preview, site, manifests
 scripts/     setup, desktop command dispatch, repository paths and process helpers
 vendor/
   pocketjs/  shared runtime submodule
 ```
 
-The three shells have separate Bun packages and TypeScript configurations.
+The four shells have separate Bun packages and TypeScript configurations.
 See the [asset policy and review](docs/ASSETS.md) for generated outputs,
 source inputs and retained documentation fixtures. Application code is separate;
 runtime APIs come from `@pocketjs/framework/*`.
@@ -54,7 +56,7 @@ cd pocket-shell
 bun run setup
 rustup target add wasm32-unknown-unknown
 bun run check                    # types, unit and simulator tests for all shells
-bun run check:3ds                # or check:ipod / check:desktop
+bun run check:3ds                # or check:ipod / check:touch / check:desktop
 ```
 
 ```sh
@@ -78,20 +80,23 @@ bun run push --host <console-ip>  # rebuild and hot-push the 3DS guest
 bun run shot --host <console-ip>  # capture both console screens
 bun run film                     # regenerate shells/3ds/media from tapes
 bun run goldens                  # compare pinned 3DS frames
+bun run touch guest
+bun run touch deploy             # portrait gesture shell on the connected iPod
 bun run ipod guest
 POCKETJS_IPODTOUCH4_VIA=x1nano bun run ipod deploy
 bun run omarchy deploy-host x1nano
 bun run omarchy shots media      # output in shells/ipod/media
 ```
 
-PocketJS is pinned to `b5e2a274`, the merged runtime used by the desktop
-import. Runtime changes land upstream before this repository moves its pin.
+PocketJS is pinned through `vendor/pocketjs`, including scaled-glyph rendering
+for live window transforms. Runtime changes belong upstream; this repository
+selects their commit through its submodule pin.
 The 3DS recovery slot remains `/pocketjs/runtime/apps/552d35dd1578b13f/`;
 hold **L+R+START** to return to HBL.
 
 ## License
 
-**GNU GPL version 3.** Existing root, 3DS and iPod code uses
+**GNU GPL version 3.** Root, 3DS, iPod and touch code uses
 `GPL-3.0-or-later`; imported desktop code retains `GPL-3.0-only`.
 PocketJS and third-party fonts retain their own licenses. See
 [LICENSING.md](LICENSING.md), [LICENSE](LICENSE) and

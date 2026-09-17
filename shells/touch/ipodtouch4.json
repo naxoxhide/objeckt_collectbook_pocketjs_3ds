@@ -1,0 +1,14 @@
+{
+  "id": "touch",
+  "projectRoot": ".",
+  "manifest": "pocket.json",
+  "bundleId": "dev.pocket-stack.fluid",
+  "bundleName": "PocketShellTouch.app",
+  "executable": "PocketShellTouch",
+  "title": "Pocket Shell Touch",
+  "scheme": "pocketjs-shell-touch",
+  "receiptSlug": "pocketjs-shell-touch",
+  "actionName": "shell_touch_gesture",
+  "svcWire": false,
+  "keepAwake": true
+}

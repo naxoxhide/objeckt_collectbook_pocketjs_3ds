@@ -37,6 +37,8 @@ const sourceInputs = new Set([
 ]);
 const wallpapers = JSON.parse(readFileSync(resolve(ROOT, "shells/3ds/src/images.json"), "utf8"));
 for (const key of Object.keys(wallpapers)) sourceInputs.add(`shells/3ds/src/${key}`);
+const touchImages = JSON.parse(readFileSync(resolve(ROOT, "shells/touch/src/images.json"), "utf8"));
+for (const key of Object.keys(touchImages)) sourceInputs.add(`shells/touch/src/${key}`);
 
 for (const path of [...goldens, ...sourceInputs]) {
   if (!tracked.includes(path)) failures.push(`missing committed input or golden: ${path}`);

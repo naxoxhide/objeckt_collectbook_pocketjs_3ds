@@ -5,7 +5,7 @@ text is in [LICENSE](LICENSE).
 
 | Scope | License |
 | --- | --- |
-| Root tooling and documentation, 3DS and iPod code and original assets | GPL-3.0-or-later |
+| Root tooling and documentation, 3DS, iPod and touch code and original assets | GPL-3.0-or-later |
 | Imported desktop shell code, documentation and original assets | GPL-3.0-only |
 | PocketJS runtime submodule | MIT |
 | iPod virtual-pointer protocol XML | MIT notice embedded in the XML |
