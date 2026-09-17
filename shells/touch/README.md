@@ -35,7 +35,9 @@ paging from vertical drags. Release projects velocity to choose a page; edge
 resistance bounds travel outside the first and last pages. Catching the spring
 keeps its displayed position. Icon taps require the same icon at press and
 release, using the icon's displayed position. Opening an icon retains its Home
-page, and the minimizing window targets that page's icon position.
+page. A minimizing window targets its icon when that icon belongs to the
+retained page or dock. An app opened from the switcher whose icon belongs to
+another page shrinks toward the current page's upper center and fades out.
 
 **A contact captures the displayed window pose.** Its local contact point
 remains under the finger as translation and scale change. Bottom-edge
@@ -59,6 +61,8 @@ the rendered frame.
 **The rightmost card is the most recently opened app.** Opening a desktop icon,
 opening a switcher card, or completing a quick switch moves that app to the end
 of the open-window order. Browsing the switcher does not change recency.
+Opening the switcher from Home centers that rightmost window, even if the
+previous switcher visit ended while browsing an older card.
 
 Bottom quick switching uses a separate row with a 12-point gap. Both windows
 share scale, height and translation while the finger is down and while the
