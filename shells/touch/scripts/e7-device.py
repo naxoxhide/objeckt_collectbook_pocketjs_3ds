@@ -152,7 +152,9 @@ class Coda:
         contents = bytearray()
         try:
             while True:
-                values = self.call('FileSystem', 'read', handle, len(contents), 16384)
+                # Keep base64 file messages below the router's 1 KiB limit.
+                # Large writes can wedge older CODA agents before they reply.
+                values = self.call('FileSystem', 'read', handle, len(contents), 512)
                 encoded = next((v for v in values if isinstance(v, str)), '')
                 part = base64.b64decode(encoded, validate=True)
                 contents.extend(part)
@@ -167,8 +169,8 @@ class Coda:
         # TCF WRITE | CREATE | TRUNCATE; only the shell's staging path is used.
         handle = self.file_handle(path, 2 | 8 | 16)
         try:
-            for offset in range(0, len(contents), 16384):
-                data = base64.b64encode(contents[offset:offset + 16384]).decode()
+            for offset in range(0, len(contents), 512):
+                data = base64.b64encode(contents[offset:offset + 512]).decode()
                 self.call('FileSystem', 'write', handle, offset, data)
         finally:
             self.call('FileSystem', 'close', handle)
@@ -188,6 +190,7 @@ def main():
     parser.add_argument('--sis')
     parser.add_argument('--input', help='Packed touch replay TSV for a --perf-trace build')
     parser.add_argument('--trace', help='Local destination for the bounded native frame trace')
+    parser.add_argument('--shot', help='Optional post-measurement native screenshot destination')
     args = parser.parse_args()
     uid = args.uid.lower().removeprefix('0x')
     if not re.fullmatch(r'[0-9a-f]{8}', uid) or not re.fullmatch(r'[A-Za-z0-9_-]+\.exe', args.executable):
@@ -221,6 +224,9 @@ def main():
                 Path(args.trace).parent.mkdir(parents=True, exist_ok=True)
                 Path(args.trace).write_bytes(trace)
                 print(f'Frame trace: {args.trace} ({len(trace)} bytes)', flush=True)
+                if args.shot:
+                    Path(args.shot).parent.mkdir(parents=True, exist_ok=True)
+                    Path(args.shot).write_bytes(device.read_file('E:\\Installs\\pocketjs-perf.png', 4 * 1024 * 1024))
             finally:
                 device.write_file('E:\\Installs\\pocketjs-perf-input.tsv', b'')
         if args.action in ('install', 'deploy'):

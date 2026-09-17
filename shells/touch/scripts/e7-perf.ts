@@ -39,6 +39,7 @@ if (command === 'make') {
 } else {
   const lines = (await Bun.file(file).text()).trim().split(/\r?\n/);
   const metadata = Object.fromEntries(lines.filter(l => l.startsWith('# ')).map(l => { const [k, ...v] = l.slice(2).split('\t'); return [k, v.join(' ')]; }));
+  if (Number(metadata.inactive_frames ?? 0) > 0) throw new Error('Invalid foreground measurement: unlock the E7 and keep Pocket Shell visible throughout replay');
   const header = lines.find(l => l.startsWith('frame\t'));
   if (!header) throw new Error('Incomplete trace: missing frame rows');
   const keys = header.split('\t');
@@ -47,6 +48,8 @@ if (command === 'make') {
   const phases = [['idle-app', 500, 1950], ['home-pages', 4000, 13500], ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
   const metrics = phases.map(([name, from, to]) => {
     const part = rows.filter(r => r.elapsed_ms >= from && r.elapsed_ms < to &&
+      // Exclude the first texture-upload interval if it crosses into idle.
+      (name !== 'idle-app' || r.elapsed_ms - r.delta_ms >= from) &&
       (name !== 'home-pages' || (r.elapsed_ms - from) % 2000 < 900) &&
       (name !== 'app-home' || ((r.elapsed_ms - from) % 2000 >= 800 && (r.elapsed_ms - from) % 2000 < 1650)));
     if (!part.length) throw new Error(`Missing samples for ${name}`);

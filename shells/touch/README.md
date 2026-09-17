@@ -180,7 +180,8 @@ bun shells/touch/scripts/e7-perf.ts make .pocket-build/validation/touch/e7-perfo
 .pocket-build/symbian/touch/usb-python/bin/python -B shells/touch/scripts/e7-device.py profile \
   --uid 0xEA360236 --executable PocketJsPocketshellToucEA360236.exe \
   --input .pocket-build/validation/touch/e7-performance/input.tsv \
-  --trace .pocket-build/validation/touch/e7-performance/trace.tsv
+  --trace .pocket-build/validation/touch/e7-performance/trace.tsv \
+  --shot .pocket-build/validation/touch/e7-performance/frame.png
 bun shells/touch/scripts/e7-perf.ts analyze .pocket-build/validation/touch/e7-performance/trace.tsv
 ```
 
@@ -191,6 +192,8 @@ GLES submission and presentation. Presentation includes GLES submission;
 these measurements do not separate GPU execution or display scanout. Replay
 starts at the native packed-input boundary, below the guest input dispatcher.
 Physical touch delivery still needs a manual check.
+The diagnostic runtime keeps the device awake during collection and saves the
+optional screenshot after measurement. Normal builds keep device sleep enabled.
 
 ## Validation
 
