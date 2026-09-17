@@ -31,6 +31,7 @@ export function smooth(a: number, b: number, v: number): number {
 
 /** Exact critically damped spring; release keeps velocity in px/s. */
 export function stepSpring(a: Axis, dt: number, frequency = 18): void {
+  if (a.value === a.target && a.velocity === 0) return;
   const d = a.value - a.target;
   const b = a.velocity + frequency * d;
   const e = Math.exp(-frequency * dt);

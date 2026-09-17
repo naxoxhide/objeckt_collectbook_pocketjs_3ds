@@ -163,6 +163,44 @@ physical touch response.** Mounted-guest tests exercise both native dimensions,
 all sixteen icons, the wide touch wire and rotation cancellation; physical
 screen and gesture checks remain device acceptance steps.
 
+### E7 performance replay
+
+The painter retains all app nodes and skips unchanged property writes. Settled
+springs stop before evaluating their exponential. Neither optimization changes
+contact positions, spring targets, or animation timing.
+
+The native profiling workflow requires a PocketJS build with `--perf-trace`
+support; the current submodule pin predates that option. Build against the
+upstream profiling checkout, with this shell as its `--project-root`, and
+install the resulting SIS before running the commands below. Use matching
+viewport dimensions and keep the phone in that orientation during the run.
+Replay builds fix orientation to the manifest's initial viewport. The analyzer
+rejects inactive-window samples and mismatched viewport dimensions; pass the
+same width and height to `make` and `analyze` for landscape workloads.
+
+```sh
+bun shells/touch/scripts/e7-perf.ts make .pocket-build/validation/touch/e7-performance/input.tsv 360 640
+.pocket-build/symbian/touch/usb-python/bin/python -B shells/touch/scripts/e7-device.py profile \
+  --uid 0xEA360236 --executable PocketJsPocketshellToucEA360236.exe \
+  --input .pocket-build/validation/touch/e7-performance/input.tsv \
+  --trace .pocket-build/validation/touch/e7-performance/trace.tsv \
+  --shot .pocket-build/validation/touch/e7-performance/frame.png
+bun shells/touch/scripts/e7-perf.ts analyze .pocket-build/validation/touch/e7-performance/trace.tsv
+```
+
+The 30-second virtual-clock replay includes Home paging, app-to-Home minimization and the
+switcher. The summary excludes settled pauses from paging and minimization.
+Input advances with the framework's frame clock, preserving the same contact
+sequence when a frame is slow. FPS and stage durations use wall time; the
+device script allows 90 seconds for boot, warmup, collection and the screenshot.
+It reports frame intervals and CPU wall times for JavaScript, core ticks,
+GLES submission and presentation. Presentation includes GLES submission;
+these measurements do not separate GPU execution or display scanout. Replay
+starts at the native packed-input boundary, below the guest input dispatcher.
+Physical touch delivery still needs a manual check.
+The diagnostic runtime keeps the device awake for five minutes and saves the
+optional screenshot after measurement. Normal builds keep device sleep enabled.
+
 ## Validation
 
 ```sh

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { createSignal, onMount } from "solid-js";
 import { View, Text, Image, type NodeMirror } from "@pocketjs/framework/components";
-import { createJumpBatch, jump, type JumpBatch } from "@pocketjs/framework/animation";
+import { createJumpBatch, jump as applyJump, type JumpBatch } from "@pocketjs/framework/animation";
 import { createGesture, type GestureContact } from "@pocketjs/framework/gesture";
 import { createScroller } from "@pocketjs/framework/kinetics";
 import { onFrame } from "@pocketjs/framework/lifecycle";
@@ -26,6 +26,17 @@ export default function TouchShell() {
   let wallpaper!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
   let detail!: NodeMirror, detailUnder!: NodeMirror, pill!: NodeMirror;
   let batch: JumpBatch | undefined;
+  // These properties are owned by this painter, with no native animations.
+  // Keep mounted content, but avoid JS/native calls for identical poses.
+  const painted = new WeakMap<NodeMirror, Record<string, number>>();
+  const windowPose = new Float64Array(APPS.length * 6).fill(NaN);
+  function jump(node: NodeMirror, prop: Parameters<typeof applyJump>[1], value: number) {
+    let previous = painted.get(node);
+    if (!previous) { previous = {}; painted.set(node, previous); }
+    if (previous[prop] === value) return;
+    previous[prop] = value;
+    applyJump(node, prop, value);
+  }
   let actionCount = 0;
   const scrollers = APPS.map(({ height }) => createScroller({ max: () => Math.max(0, height - (layout().contentHeight - 6)), extent: () => layout().contentHeight - 6, overscroll: 65 }));
 
@@ -98,18 +109,27 @@ export default function TouchShell() {
     jump(pill, "bgColor", (0xff000000 | (Math.round(255 - 184 * ink) << 16) |
       (Math.round(255 - 206 * ink) << 8) | Math.round(255 - 217 * ink)) >>> 0);
     jump(pill, "scaleX", 1 - (nav.drag?.kind === "navigation" ? 0.12 * (1 - expansion) : 0));
+    let windowsChanged = false;
     for (let i = 0; i < windows.length; i++) {
       const c = nav.cards[i], b = i * 6;
+      const visibility = nav.paintVisibility(i), offset = scrollers[i].offset();
+      if (windowPose[b] === c.x.value && windowPose[b + 1] === c.y.value &&
+          windowPose[b + 2] === c.scale.value && windowPose[b + 3] === visibility &&
+          windowPose[b + 4] === c.visibility.value && windowPose[b + 5] === offset) continue;
+      windowPose[b] = c.x.value; windowPose[b + 1] = c.y.value;
+      windowPose[b + 2] = c.scale.value; windowPose[b + 3] = visibility;
+      windowPose[b + 4] = c.visibility.value; windowPose[b + 5] = offset;
+      windowsChanged = true;
       batch.set(b, c.x.value); batch.set(b + 1, c.y.value);
       batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
       batch.set(b + 4, 28 * (1 - smooth(0.72, 1, c.scale.value)));
-      batch.set(b + 5, nav.paintVisibility(i));
-      jump(contents[i], "translateY", -scrollers[i].offset());
+      batch.set(b + 5, visibility);
+      jump(contents[i], "translateY", -offset);
       jump(labels[i], "translateX", c.x.value);
       jump(labels[i], "translateY", c.y.value - 29);
       jump(labels[i], "opacity", Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
     }
-    batch.commit();
+    if (windowsChanged) batch.commit();
     jump(detail, "translateX", layout().width * (1 - nav.detail.value));
     jump(detail, "opacity", smooth(0, 0.01, nav.detail.value));
     jump(detailUnder, "translateX", -78 * nav.detail.value);

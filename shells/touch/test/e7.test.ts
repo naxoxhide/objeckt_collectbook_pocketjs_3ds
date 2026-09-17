@@ -126,3 +126,21 @@ describe('Nokia E7 native viewport', () => {
     }
   });
 });
+
+// A retained, settled scene must not keep crossing the native property bridge.
+// Check both host rates: reducing updates must not depend on E7's old 30 Hz cap.
+for (const hz of [30, 60]) {
+  test(`settled touch shell sends no property writes at ${hz} Hz`, async () => {
+    let writes = 0;
+    const world = await bootWorld('pocketshell-touch-e7', hz, undefined, ops => {
+      const direct = ops.setProp as (...args: number[]) => void;
+      const batch = ops.setPropBatch as (buffer: ArrayBuffer) => void;
+      ops.setProp = (...args: number[]) => { writes++; direct(...args); };
+      ops.setPropBatch = (buffer: ArrayBuffer) => { writes += buffer.byteLength / 24; batch(buffer); };
+    }, { width: 360, height: 640 });
+    for (let i = 0; i < hz * 2; i++) { world.frame(0); for (let t = 0; t < 60 / hz; t++) world.tick(); }
+    writes = 0;
+    for (let i = 0; i < hz; i++) { world.frame(0); for (let t = 0; t < 60 / hz; t++) world.tick(); }
+    expect(writes).toBe(0);
+  });
+}

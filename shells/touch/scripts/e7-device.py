@@ -152,7 +152,9 @@ class Coda:
         contents = bytearray()
         try:
             while True:
-                values = self.call('FileSystem', 'read', handle, len(contents), 16384)
+                # Keep base64 file messages below the router's 1 KiB limit.
+                # Large writes can wedge older CODA agents before they reply.
+                values = self.call('FileSystem', 'read', handle, len(contents), 512)
                 encoded = next((v for v in values if isinstance(v, str)), '')
                 part = base64.b64decode(encoded, validate=True)
                 contents.extend(part)
@@ -167,8 +169,8 @@ class Coda:
         # TCF WRITE | CREATE | TRUNCATE; only the shell's staging path is used.
         handle = self.file_handle(path, 2 | 8 | 16)
         try:
-            for offset in range(0, len(contents), 16384):
-                data = base64.b64encode(contents[offset:offset + 16384]).decode()
+            for offset in range(0, len(contents), 512):
+                data = base64.b64encode(contents[offset:offset + 512]).decode()
                 self.call('FileSystem', 'write', handle, offset, data)
         finally:
             self.call('FileSystem', 'close', handle)
@@ -182,10 +184,13 @@ class Coda:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['deploy', 'install', 'status'])
+    parser.add_argument('action', choices=['deploy', 'install', 'status', 'profile'])
     parser.add_argument('--uid', required=True)
     parser.add_argument('--executable', required=True)
     parser.add_argument('--sis')
+    parser.add_argument('--input', help='Packed touch replay TSV for a --perf-trace build')
+    parser.add_argument('--trace', help='Local destination for the bounded native frame trace')
+    parser.add_argument('--shot', help='Optional post-measurement native screenshot destination')
     args = parser.parse_args()
     uid = args.uid.lower().removeprefix('0x')
     if not re.fullmatch(r'[0-9a-f]{8}', uid) or not re.fullmatch(r'[A-Za-z0-9_-]+\.exe', args.executable):
@@ -194,6 +199,8 @@ def main():
         parser.error('Install requires a SIS basename')
     if args.action == 'deploy' and (not args.sis or not Path(args.sis).is_file()):
         parser.error('Deploy requires a local SIS file')
+    if args.action == 'profile' and (not args.input or not args.trace or not Path(args.input).is_file()):
+        parser.error('Profile requires --input and --trace')
     with Coda() as device:
         remote = f'E:\\Installs\\{args.sis}'
         if args.action == 'deploy':
@@ -202,6 +209,29 @@ def main():
             remote = f'E:\\Installs\\pocket-shell-{uid}-{digest[:16]}.sis'
             device.write_file(remote, contents)
             print(f'CODA transfer/readback SHA-256: {digest}', flush=True)
+        if args.action == 'profile':
+            contents = Path(args.input).read_bytes()
+            if len(contents) > 131072:
+                raise ValueError('Replay exceeds the native 128 KiB limit')
+            device.write_file('E:\\Installs\\pocketjs-perf-input.tsv', contents)
+            try:
+                for process in device.processes(args.executable, uid):
+                    device.call('Processes', 'terminate', process)
+                device.call('Processes', 'start', '', args.executable, [], [], False)
+                print('Native replay started; collecting 30 virtual seconds after guest warmup.', flush=True)
+                # Cold QuickJS boot and first texture uploads precede the
+                # 30-second window. Do not poll USB during measurement.
+                time.sleep(45)
+                time.sleep(45)
+                trace = device.read_file('E:\\Installs\\pocketjs-perf.tsv', 1024 * 1024)
+                Path(args.trace).parent.mkdir(parents=True, exist_ok=True)
+                Path(args.trace).write_bytes(trace)
+                print(f'Frame trace: {args.trace} ({len(trace)} bytes)', flush=True)
+                if args.shot:
+                    Path(args.shot).parent.mkdir(parents=True, exist_ok=True)
+                    Path(args.shot).write_bytes(device.read_file('E:\\Installs\\pocketjs-perf.png', 4 * 1024 * 1024))
+            finally:
+                device.write_file('E:\\Installs\\pocketjs-perf-input.tsv', b'')
         if args.action in ('install', 'deploy'):
             # Only stop this manifest's process before replacing its executable.
             for process in device.processes(args.executable, uid):
