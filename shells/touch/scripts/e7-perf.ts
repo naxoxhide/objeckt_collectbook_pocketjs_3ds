@@ -39,25 +39,29 @@ if (command === 'make') {
 } else {
   const lines = (await Bun.file(file).text()).trim().split(/\r?\n/);
   const metadata = Object.fromEntries(lines.filter(l => l.startsWith('# ')).map(l => { const [k, ...v] = l.slice(2).split('\t'); return [k, v.join(' ')]; }));
+  if (metadata.viewport !== `${Number(widthArg)} ${Number(heightArg)}`) throw new Error('Trace viewport differs from the replay dimensions; pass the same width and height to make and analyze');
   if (Number(metadata.inactive_frames ?? 0) > 0) throw new Error('Invalid foreground measurement: unlock the E7 and keep Pocket Shell visible throughout replay');
   const header = lines.find(l => l.startsWith('frame\t'));
   if (!header) throw new Error('Incomplete trace: missing frame rows');
   const keys = header.split('\t');
   const rows = lines.filter(l => /^\d+\t/.test(l)).map(l => Object.fromEntries(l.split('\t').map((v, i) => [keys[i], Number(v)])));
-  if (!rows.length || rows.at(-1)!.elapsed_ms < 29000) throw new Error('Incomplete 30 second measurement');
+  const at = (r: Record<string, number>) => r.replay_ms ?? r.elapsed_ms;
+  if (!rows.length || at(rows.at(-1)!) < 29900) throw new Error('Incomplete 30 second workload');
   const phases = [['idle-app', 500, 1950], ['home-pages', 4000, 13500], ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
   const metrics = phases.map(([name, from, to]) => {
-    const part = rows.filter(r => r.elapsed_ms >= from && r.elapsed_ms < to &&
+    const part = rows.filter(r => at(r) >= from && at(r) < to &&
       // Exclude the first texture-upload interval if it crosses into idle.
-      (name !== 'idle-app' || r.elapsed_ms - r.delta_ms >= from) &&
-      (name !== 'home-pages' || (r.elapsed_ms - from) % 2000 < 900) &&
-      (name !== 'app-home' || ((r.elapsed_ms - from) % 2000 >= 800 && (r.elapsed_ms - from) % 2000 < 1650)));
+      (name !== 'idle-app' || r.replay_ms !== undefined || r.elapsed_ms - r.delta_ms >= from) &&
+      (name !== 'home-pages' || (at(r) - from) % 2000 < 900) &&
+      (name !== 'app-home' || ((at(r) - from) % 2000 >= 800 && (at(r) - from) % 2000 < 1650)));
     if (!part.length) throw new Error(`Missing samples for ${name}`);
     const stats = (key: string) => {
       const a = part.map(r => r[key]).sort((a, b) => a - b);
       return { mean: a.reduce((a, b) => a + b, 0) / a.length, p50: a[Math.floor((a.length - 1) * .5)], p95: a[Math.ceil((a.length - 1) * .95)], max: a.at(-1) };
     };
-    return { name, frames: part.length, fps: 1000 / stats('delta_ms').mean, delta: stats('delta_ms'), js: stats('js_ms'), tick: stats('tick_ms'), draw: stats('draw_ms'), present: stats('present_ms') };
+    const render = Object.fromEntries(['scene_ms', 'resources_ms', 'geometry_ms', 'upload_ms', 'submit_ms', 'batches', 'vertices']
+      .filter(key => keys.includes(key)).map(key => [key, stats(key)]));
+    return { name, frames: part.length, fps: 1000 / stats('delta_ms').mean, delta: stats('delta_ms'), js: stats('js_ms'), tick: stats('tick_ms'), draw: stats('draw_ms'), present: stats('present_ms'), render };
   });
   console.log(JSON.stringify({ metadata, frames: rows.length, phases: metrics }, null, 2));
 }

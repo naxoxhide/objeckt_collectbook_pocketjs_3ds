@@ -218,8 +218,11 @@ def main():
                 for process in device.processes(args.executable, uid):
                     device.call('Processes', 'terminate', process)
                 device.call('Processes', 'start', '', args.executable, [], [], False)
-                print('Native replay started; collecting 30 seconds after guest startup.', flush=True)
-                time.sleep(40)
+                print('Native replay started; collecting 30 virtual seconds after guest warmup.', flush=True)
+                # Cold QuickJS boot and first texture uploads precede the
+                # 30-second window. Do not poll USB during measurement.
+                time.sleep(45)
+                time.sleep(45)
                 trace = device.read_file('E:\\Installs\\pocketjs-perf.tsv', 1024 * 1024)
                 Path(args.trace).parent.mkdir(parents=True, exist_ok=True)
                 Path(args.trace).write_bytes(trace)
