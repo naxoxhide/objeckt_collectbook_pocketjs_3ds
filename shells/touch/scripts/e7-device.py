@@ -182,10 +182,12 @@ class Coda:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['deploy', 'install', 'status'])
+    parser.add_argument('action', choices=['deploy', 'install', 'status', 'profile'])
     parser.add_argument('--uid', required=True)
     parser.add_argument('--executable', required=True)
     parser.add_argument('--sis')
+    parser.add_argument('--input', help='Packed touch replay TSV for a --perf-trace build')
+    parser.add_argument('--trace', help='Local destination for the bounded native frame trace')
     args = parser.parse_args()
     uid = args.uid.lower().removeprefix('0x')
     if not re.fullmatch(r'[0-9a-f]{8}', uid) or not re.fullmatch(r'[A-Za-z0-9_-]+\.exe', args.executable):
@@ -194,6 +196,8 @@ def main():
         parser.error('Install requires a SIS basename')
     if args.action == 'deploy' and (not args.sis or not Path(args.sis).is_file()):
         parser.error('Deploy requires a local SIS file')
+    if args.action == 'profile' and (not args.input or not args.trace or not Path(args.input).is_file()):
+        parser.error('Profile requires --input and --trace')
     with Coda() as device:
         remote = f'E:\\Installs\\{args.sis}'
         if args.action == 'deploy':
@@ -202,6 +206,23 @@ def main():
             remote = f'E:\\Installs\\pocket-shell-{uid}-{digest[:16]}.sis'
             device.write_file(remote, contents)
             print(f'CODA transfer/readback SHA-256: {digest}', flush=True)
+        if args.action == 'profile':
+            contents = Path(args.input).read_bytes()
+            if len(contents) > 131072:
+                raise ValueError('Replay exceeds the native 128 KiB limit')
+            device.write_file('E:\\Installs\\pocketjs-perf-input.tsv', contents)
+            try:
+                for process in device.processes(args.executable, uid):
+                    device.call('Processes', 'terminate', process)
+                device.call('Processes', 'start', '', args.executable, [], [], False)
+                print('Native replay started; collecting 30 seconds after guest startup.', flush=True)
+                time.sleep(40)
+                trace = device.read_file('E:\\Installs\\pocketjs-perf.tsv', 1024 * 1024)
+                Path(args.trace).parent.mkdir(parents=True, exist_ok=True)
+                Path(args.trace).write_bytes(trace)
+                print(f'Frame trace: {args.trace} ({len(trace)} bytes)', flush=True)
+            finally:
+                device.write_file('E:\\Installs\\pocketjs-perf-input.tsv', b'')
         if args.action in ('install', 'deploy'):
             # Only stop this manifest's process before replacing its executable.
             for process in device.processes(args.executable, uid):
