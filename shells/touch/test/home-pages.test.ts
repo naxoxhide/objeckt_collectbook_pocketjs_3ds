@@ -149,4 +149,50 @@ describe("SpringBoard home pages", () => {
     });
     expect(samples[0]).toBeCloseTo(samples[1], 6); expect(samples[1]).toBeCloseTo(samples[2], 6);
   });
+
+  test("Home reveal returns to the most recent app after browsing without opening another card", () => {
+    for (const recent of [0, 1, 12, 14]) {
+      const n = home(); n.open(recent); settle(n);
+      n.down(touch(160, 466)); n.move(touch(160, 425), 1 / 60); n.up(touch(160, 425)); settle(n);
+      n.down(touch(160, 466)); n.move(touch(160, 365), 1 / 60); n.up(touch(160, 365)); settle(n);
+      const order = [...n.opened];
+      n.down(touch(160, 220)); n.move(touch(300, 220), 1 / 60); n.up(touch(300, 220)); settle(n);
+      expect(n.selected).not.toBe(recent);
+      expect(n.opened).toEqual(order);
+      n.down(touch(310, 425)); n.up(touch(310, 425)); settle(n);
+      expect(n.destination).toBe("home");
+      n.down(touch(160, 466)); n.move(touch(160, 365), 1 / 60);
+      expect(n.selected).toBe(recent);
+      const release = n.cards.map(c => [c.x.value, c.y.value, c.scale.value]);
+      n.up(touch(160, 365));
+      expect(n.cards.map(c => [c.x.value, c.y.value, c.scale.value])).toEqual(release);
+      settle(n);
+      expect(n.opened).toEqual(order);
+      expect(n.opened.at(-1)).toBe(recent);
+      expect(n.deck.value).toBe(n.opened.length - 1);
+      expect(n.cards[recent].x.value).toBeCloseTo((320 - 320 * 0.64) / 2, 8);
+      for (const i of n.opened.slice(0, -1)) expect(n.cards[i].x.value).toBeLessThan(n.cards[recent].x.value);
+    }
+  });
+
+  test("a switcher app from another Home page minimizes inside the retained page", () => {
+    for (const [homePage, index] of [[0, 12], [0, 14], [1, 3], [1, 7]]) {
+      const n = home(); n.homePage.value = n.homePage.target = homePage;
+      n.down(touch(160, 466)); n.move(touch(160, 365), 1 / 60); n.up(touch(160, 365)); settle(n);
+      n.open(index); settle(n);
+      expect(n.homePage.value).toBe(homePage);
+      n.down(touch(160, 466)); n.move(touch(160, 425), 1 / 60);
+      const release = [n.cards[index].x.value, n.cards[index].y.value, n.cards[index].scale.value];
+      n.up(touch(160, 425));
+      expect([n.cards[index].x.value, n.cards[index].y.value, n.cards[index].scale.value]).toEqual(release);
+      expect(n.cards[index].x.target + 28).toBe(160);
+      expect(n.cards[index].y.target + 42).toBeGreaterThan(100);
+      expect(n.cards[index].y.target + 42).toBeLessThan(240);
+      settle(n);
+      expect(n.homePage.value).toBe(homePage);
+      expect(n.cards[index].visibility.value).toBe(0);
+      expect(n.cards[index].x.value).toBe(132);
+      expect(n.cards[index].scale.value).toBe(56 / 320);
+    }
+  });
 });

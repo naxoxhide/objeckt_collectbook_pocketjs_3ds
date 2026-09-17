@@ -187,6 +187,30 @@ describe("Touch shell through the mounted PocketJS guest", () => {
     glide(45, 190, 280, 190);
     expect(writes.get(named.get("TouchHomePage0")!)!.get(PROP.translateX)).toBe(0);
     expect(nodes.every((_, i) => prop(i, PROP.opacity) === 0)).toBe(true);
+    // Browsing Calculator must not replace Music as Home's most recent app.
+    glide(160, 466, 160, 365);
+    expect(prop(1, PROP.translateX)).toBeCloseTo(57.6, 5);
+    glide(160, 230, 250, 230, 18, 8);
+    expect(prop(15, PROP.translateX)).toBeCloseTo(57.6, 5);
+    tap(310, 425);
+    glide(160, 466, 160, 365);
+    expect(prop(1, PROP.translateX)).toBeCloseTo(57.6, 5);
+    expect(prop(15, PROP.translateX)).toBeLessThan(prop(1, PROP.translateX));
+    // Opening a page-two app through the deck retains page one underneath.
+    glide(160, 230, 250, 230, 18, 8); tap(160, 220);
+    expect(prop(15, PROP.scaleX)).toBe(1);
+    frame(160, 466);
+    for (let i = 1; i <= 18; i++) frame(160, Math.round(466 - 41 * i / 18));
+    frame();
+    for (let i = 0; i < 120; i++) {
+      frame();
+      expect(prop(15, PROP.translateX)).toBeGreaterThanOrEqual(0);
+      expect(prop(15, PROP.translateX) + 320 * prop(15, PROP.scaleX)).toBeLessThanOrEqual(320);
+    }
+    expect(prop(15, PROP.translateX)).toBe(132);
+    expect(prop(15, PROP.translateY)).toBe(132);
+    expect(prop(15, PROP.opacity)).toBe(0);
+    expect(writes.get(named.get("TouchHomePage0")!)!.get(PROP.translateX)).toBe(0);
     const finalNodes: number[] = [];
     const collect = (n: any) => { if (n.n?.startsWith("TouchWindow")) finalNodes.push(n.i); n.k?.forEach(collect); };
     collect(world.getTree());

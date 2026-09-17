@@ -204,6 +204,16 @@ try {
     homeFps.push(+sample.fields.window_frames * 1e6 / +sample.fields.window_us);
   }
   await homePaging; await Bun.sleep(850); await capture("45-home-after-paging");
+  await journey("46-home-reveals-recent-music", [[160, 466, 80], [160, 365, 350]]);
+  await journey("47-browse-calculator-without-opening", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
+  await journey("48-exit-browsed-deck", [[310, 425, 120]]);
+  await journey("49-home-reveals-music-again", [[160, 466, 80], [160, 365, 350]]);
+  await journey("50-browse-calculator", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
+  await journey("51-open-calculator-from-page-one", [[160, 220, 120]]);
+  await journey("52-off-page-app-minimizes-on-page-one", [[160, 466, 80], [160, 425, 300]], true,
+    { afterMs: 430, name: "52a-off-page-app-shrinks-inside-current-page" });
+  await journey("53-home-reveals-recent-calculator", [[160, 466, 80], [160, 365, 350]]);
+  await journey("54-leave-on-home-page-one", [[310, 425, 120]]);
   const final = await status();
   if (+final.fields.touch_sequences !== results.length + 3 ||
       +final.fields.completed_touch_sequences !== results.length + 3 || final.fields.touch_down !== "0") {

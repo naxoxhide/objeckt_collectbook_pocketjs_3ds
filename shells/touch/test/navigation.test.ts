@@ -298,6 +298,7 @@ describe("Touch shell continuous navigation", () => {
 
   test("the desktop deck enters from the left at card size and full opacity, and reverses", () => {
     const n = navigation();
+    n.open(0); settle(n); // Keep the active app at the newest end of this fixture.
     lift(n); settle(n);
     expect(n.destination).toBe("home");
     expect(n.down(contact(160, 466))).toBe("reveal");

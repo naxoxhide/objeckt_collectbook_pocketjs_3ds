@@ -155,12 +155,13 @@ export class Navigation {
       const pose = this.stackPose(this.opened.indexOf(i) - rank);
       const foreground = destination === "app" && i === this.selected;
       const minimize = destination === "home" && source === "app" && i === this.selected;
-      // Only the foreground app returns to its icon. Background windows keep
-      // their compact pose; leaving the switcher sends the deck to the left.
+      const home = this.homeReturnPosition(i);
+      // A visible icon receives its app; an icon on another page uses an
+      // in-page fade target. Background windows keep their compact pose.
       card.scale.target = foreground ? 1 : minimize ? ICON_SIZE / this.layout.width : destination === "home" ? card.scale.value : pose.scale;
-      card.x.target = foreground ? 0 : minimize ? this.iconX(i) : destination === "home" ?
+      card.x.target = foreground ? 0 : minimize ? home.x : destination === "home" ?
         card.x.value - (source === "app" ? 0 : this.layout.width * 2 + 32) : pose.x;
-      card.y.target = foreground ? 0 : minimize ? this.iconWindowY(i) : destination === "home" ? card.y.value : pose.y;
+      card.y.target = foreground ? 0 : minimize ? home.y : destination === "home" ? card.y.value : pose.y;
       card.visibility.target = foreground || destination === "switcher" ? 1 : 0;
       if (this.stackDriven) {
         const actual = this.stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
@@ -249,6 +250,13 @@ export class Navigation {
     return this.layout.icon(index).y + (ICON_SIZE - this.layout.height * ICON_SIZE / this.layout.width) / 2;
   }
 
+  private homeReturnPosition(index: number): { x: number; y: number } {
+    const page = APPS[index].page;
+    if (page < 0 || page === this.homePage.target) return { x: this.iconX(index), y: this.iconWindowY(index) };
+    return { x: (this.layout.width - ICON_SIZE) / 2,
+      y: this.layout.firstRow + (ICON_SIZE - this.layout.height * ICON_SIZE / this.layout.width) / 2 };
+  }
+
   iconX(index: number): number {
     const app = APPS[index];
     return this.layout.icon(index).x + (app.page < 0 ? 0 : (app.page - this.homePage.value) * this.layout.width);
@@ -286,6 +294,11 @@ export class Navigation {
 
   down(c: Contact): DragKind | null {
     if (this.drag) return null; // A second contact cannot steal the anchor.
+    // Browsing selects a card without activating it. Home entry must start
+    // from app recency, whose last member is the rightmost window.
+    if (this.destination === "home" && c.y >= this.layout.height - 48 && this.opened.length) {
+      this.selected = this.opened[this.opened.length - 1];
+    }
     const active = this.cards[this.selected];
     const inFlight = this.opened.includes(this.selected) && Math.abs(active.scale.value - active.scale.target) > 0.015;
     const kind: DragKind = this.destination === "home" && c.y >= this.layout.height - 48 ? "reveal" :
