@@ -1,16 +1,19 @@
 # Pocket Shell Touch
 
 A PocketJS navigation demo for the iPod touch 4's 320 × 480 logical viewport.
-Today, Music, Places, Weather, Notes and Photos are six retained views inside one
-app. They contain sample content and do not connect to external services.
+Sixteen retained mock apps share two Home pages: Today, Music, Places, Weather,
+Notes, Photos, Mail, Calendar, Clock, Safari, Files, Settings, Camera, Health,
+Books and Calculator. They contain sample content and do not connect to external
+services.
 
-<img src="media/home.png" width="240" alt="Pocket Shell desktop with six mock apps" /> <img src="media/quick-switch.png" width="240" alt="Equal-size live windows during a bottom-edge quick switch" />
+<img src="media/home.png" width="240" alt="Four-column Home grid and fixed four-app dock" /> <img src="media/home-second.png" width="240" alt="Second Home page with four apps and two information cards" /> <img src="media/quick-switch.png" width="240" alt="Equal-size live windows during a bottom-edge quick switch" />
 
-These product screenshots show the desktop and a held quick switch on iPod
+These product screenshots show both Home pages and a held quick switch on iPod
 touch 4. Per-run captures and telemetry remain in ignored validation output.
 
 | Input | Result |
 | --- | --- |
+| Swipe horizontally on Home | Follow the finger between two pages, then spring to the chosen page; the dock stays fixed |
 | Swipe up from an app, then release | Minimize the current app and return to the desktop |
 | Lift from an app and hold for 220 ms before releasing | Stay in the app switcher |
 | Lift the desktop bottom bar, then release | Peek from the left while held, then spring into the switcher |
@@ -22,6 +25,16 @@ touch 4. Per-run captures and telemetry remain in ignored validation output.
 | Tap Today content | Open its detail view |
 | Drag from the detail's left edge | Follow the finger back; reverse to cancel |
 | Catch a closing window and drag down | Enlarge it and return to the app |
+
+**Home uses four columns and a fixed four-app dock.** Eight icons occupy the
+first page; Camera, Health, Books, Calculator and two information cards occupy
+the second. One continuous page coordinate moves both pages, interpolates the
+page dots and offsets the wallpaper. A six-point direction lock separates
+paging from vertical drags. Release projects velocity to choose a page; edge
+resistance bounds travel outside the first and last pages. Catching the spring
+keeps its displayed position. Icon taps require the same icon at press and
+release, using the icon's displayed position. Opening an icon retains its Home
+page, and the minimizing window targets that page's icon position.
 
 **A contact captures the displayed window pose.** Its local contact point
 remains under the finger as translation and scale change. Bottom-edge
@@ -93,7 +106,7 @@ bun run touch status --require-action
 bun run touch capture
 ```
 
-The shell owns its portrait app, six mockups, gesture model, assets and tests.
+The shell owns its portrait app, sixteen mockups, gesture model, assets and tests.
 The Omarchy companion remains in `shells/ipod`. The shared runtime, renderer,
 UIKit host and installer come from the pinned `vendor/pocketjs` submodule.
 
@@ -113,11 +126,12 @@ bun run touch tunnel
 bun run --cwd shells/touch test:device
 ```
 
-Model tests cover Home versus held overview intent, bounded desktop peeking,
+Model tests cover Home paging, resistance at both edges, interrupted page springs,
+page-aware icon hit testing, Home versus held overview intent, bounded desktop peeking,
 reversal, cancellation, release velocity, recency, equal-size quick switching,
 stack parallax, direction locking, dismissal and reopening. The mounted guest
-checks actual touch dispatch, all six icons, retained content, paint bounds and
-pixel parity with and without occlusion culling.
+checks actual touch dispatch, all sixteen icons, both Home pages, the fixed
+dock, retained content, paint bounds and pixel parity with and without occlusion culling.
 
 The device test compiles its UIKit event sender for this descriptor's bundle
 ID. It checks build identity, touch completion, actions, screenshots and frame
