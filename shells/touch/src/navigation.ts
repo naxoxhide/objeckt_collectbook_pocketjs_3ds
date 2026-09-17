@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Destinations choose spring targets. They never replace a scene or reset its
 // presentation. A down edge catches the displayed pose, including mid-spring.
-import { APPS } from "./catalog.ts";
+import { APPS, HOME_PAGES, ICON_SIZE } from "./catalog.ts";
 
 export const WIDTH = 320;
 export const HEIGHT = 480;
@@ -64,6 +64,7 @@ interface Drag {
   quiet: number; holdX: number; holdY: number; overview: number;
   order: number[]; quick: number; caughtQuick: boolean;
   destination: Destination; selected: number; detail: number;
+  homePage: number; homeTarget: number;
   cards: { x: number; y: number; scale: number; visibility: number }[];
 }
 
@@ -77,6 +78,7 @@ export class Navigation {
     scale: axis(i === 0 ? 1 : stackPose(-i).scale), visibility: axis(i === 0 ? 1 : 0),
   }));
   readonly deck = axis(0);
+  readonly homePage = axis(0);
   private stackDriven = false;
   // A quick-switch chain keeps its spatial order even as recency changes.
   private quickOrder: number[] = [];
@@ -135,7 +137,7 @@ export class Navigation {
       // Only the foreground app returns to its icon. Background windows keep
       // their compact pose; leaving the switcher sends the deck to the left.
       card.scale.target = foreground ? 1 : minimize ? 0.175 : destination === "home" ? card.scale.value : pose.scale;
-      card.x.target = foreground ? 0 : minimize ? ICON_X[i] : destination === "home" ?
+      card.x.target = foreground ? 0 : minimize ? this.iconX(i) : destination === "home" ?
         card.x.value - (source === "app" ? 0 : WIDTH * 2 + 32) : pose.x;
       card.y.target = foreground ? 0 : minimize ? ICON_Y[i] - 14 : destination === "home" ? card.y.value : pose.y;
       card.visibility.target = foreground || destination === "switcher" ? 1 : 0;
@@ -198,11 +200,12 @@ export class Navigation {
     const visible = card.visibility.value > 0.001 && card.x.value < WIDTH && card.y.value < HEIGHT &&
       card.x.value + WIDTH * card.scale.value > 0 && card.y.value + HEIGHT * card.scale.value > 0;
     if ((reopening || this.destination === "home") && !visible) {
-      Object.assign(card.x, axis(ICON_X[index]));
+      Object.assign(card.x, axis(this.iconX(index)));
       Object.assign(card.y, axis(ICON_Y[index] - 14));
       Object.assign(card.scale, axis(0.175));
       Object.assign(card.visibility, axis(0));
     }
+    if (this.destination === "home" && APPS[index].page >= 0) this.homePage.target = APPS[index].page;
     this.selected = index;
     this.foreground = index;
     this.targets("app");
@@ -219,6 +222,16 @@ export class Navigation {
     if (this.selected === index) this.selected = this.opened[Math.min(rank, this.opened.length - 1)] ?? index;
     this.targets("switcher");
     this.record("close");
+  }
+
+  iconX(index: number): number {
+    const app = APPS[index];
+    return app.x + (app.page < 0 ? 0 : (app.page - this.homePage.value) * WIDTH);
+  }
+
+  hitHomeIcon(x: number, y: number): number {
+    return APPS.findIndex((app, i) => x >= this.iconX(i) - 7 && x < this.iconX(i) + ICON_SIZE + 7 &&
+      y >= app.y - 8 && y < app.y + 82);
   }
 
   hitCard(x: number, y: number): number {
@@ -262,7 +275,7 @@ export class Navigation {
     if (kind !== "navigation") this.quickOrder = [];
     else if (!this.quickOrder.length) this.quickOrder = [...this.opened];
     this.quickSettling = false;
-    const hit = this.hitCard(c.x, c.y);
+    const hit = kind === "home" ? this.hitHomeIcon(c.x, c.y) : this.hitCard(c.x, c.y);
     const pivot = kind === "pager" && hit >= 0 ? hit : this.selected;
     const anchored = this.cards[pivot];
     this.drag = {
@@ -273,6 +286,7 @@ export class Navigation {
       dx: 0, dy: 0, moved: false, hit, scene: this.scene.value,
       direction: "pending", deck: this.deck.value, pivot, quiet: 0, holdX: c.x, holdY: c.y, overview: this.overview.value,
       destination: this.destination, selected: this.selected, detail: this.detail.value,
+      homePage: this.homePage.value, homeTarget: this.homePage.target,
       order: [...this.quickOrder], quick: caughtQuick ? 1 : 0, caughtQuick,
       cards: this.cards.map(card => ({ x: card.x.value, y: card.y.value, scale: card.scale.value, visibility: card.visibility.value })),
     };
@@ -370,6 +384,24 @@ export class Navigation {
       } else if (d.direction === "vertical" && d.hit >= 0) {
         this.follow(this.cards[d.hit].y, d.cards[d.hit].y + Math.min(0, removeSlop(dy)), dt);
       }
+    } else if (d.kind === "home") {
+      if (d.direction === "pending" && Math.max(Math.abs(dx), Math.abs(dy)) > PAN_SLOP) {
+        if (Math.abs(dx) > Math.abs(dy) * 1.15) d.direction = "horizontal";
+        else if (Math.abs(dy) > Math.abs(dx) * 1.15) d.direction = "vertical";
+        else if (Math.max(Math.abs(dx), Math.abs(dy)) > 12) d.direction = Math.abs(dx) >= Math.abs(dy) ? "horizontal" : "vertical";
+      }
+      d.moved ||= d.direction !== "pending";
+      if (d.direction === "horizontal") {
+        // Undo resistance at the caught position before adding travel, so a
+        // second contact also catches an overshooting spring without a jump.
+        const edge = clamp(d.homePage, 0, HOME_PAGES - 1), excess = d.homePage - edge;
+        // A fast release can carry the spring past the normal drag limit.
+        // Fit the caught pose inside this contact's curve before inverting it.
+        const limit = Math.max(90 / WIDTH, Math.abs(excess) * 2);
+        const raw = edge + excess / (1 - Math.abs(excess) / limit) - removeSlop(dx) / WIDTH;
+        const bounded = clamp(raw, 0, HOME_PAGES - 1), over = raw - bounded;
+        this.follow(this.homePage, bounded + over / (1 + Math.abs(over) / limit), dt);
+      }
     } else if (d.kind === "back") {
       this.follow(this.detail, clamp(d.detail - dx / WIDTH), dt);
     }
@@ -385,6 +417,7 @@ export class Navigation {
     if (!d || d.id !== c.id) return null;
     this.drag = null;
     if (cancelled) {
+      if (d.kind === "home") { this.homePage.target = d.homeTarget; return d.kind; }
       this.selected = d.selected;
       if (d.kind === "navigation" && d.quick > 0) { this.settleQuick(d.order); return d.kind; }
       this.targets(d.destination, d.kind === "pager");
@@ -429,9 +462,15 @@ export class Navigation {
         this.targets("switcher", true);
         this.record("browse");
       }
-    } else if (d.kind === "home" && !d.moved) {
-      const index = ICON_X.findIndex((x, i) => c.x >= x - 12 && c.x <= x + 68 && c.y >= ICON_Y[i] - 12 && c.y < ICON_Y[i] + 90);
-      if (index >= 0) this.open(index);
+    } else if (d.kind === "home") {
+      if (d.direction === "horizontal") {
+        this.homePage.velocity = -c.vx / WIDTH;
+        this.homePage.target = Math.round(clamp(this.homePage.value + this.homePage.velocity * 0.18, 0, HOME_PAGES - 1));
+        this.record("home-page");
+      } else if (!d.moved) {
+        const index = this.hitHomeIcon(c.x, c.y);
+        if (index >= 0 && index === d.hit) this.open(index);
+      }
     } else if (d.kind === "back") {
       this.detail.target = d.dx + c.vx * 0.12 > WIDTH * 0.35 ? 0 : 1;
       if (this.detail.target === 0) this.record("back");
@@ -449,6 +488,7 @@ export class Navigation {
 
   step(dt: number): void {
     const kind = this.drag?.kind;
+    if (kind !== "home") stepSpring(this.homePage, dt);
     if (this.stackDriven && kind !== "pager") {
       stepSpring(this.deck, dt);
       this.paintStack(dt, true);

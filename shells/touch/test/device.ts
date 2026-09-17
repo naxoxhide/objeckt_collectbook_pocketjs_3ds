@@ -6,6 +6,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { homedir } from "node:os";
 import { createCanvas } from "@napi-rs/canvas";
+import { APPS } from "../src/catalog.ts";
 import { ipodtouch4SysrootPath } from "../../../vendor/pocketjs/tools/ipodtouch4-toolchain.ts";
 import { shellQuote } from "../../../vendor/pocketjs/tools/ipodtouch4-installation.ts";
 
@@ -18,7 +19,9 @@ const cache = join(homedir(), ".cache/pocket-stack/ipodtouch4/ssh");
 const port = process.env.POCKETJS_IPODTOUCH4_PORT ?? "2224";
 const ssh = ["ssh", "-p", port, "-i", join(cache, "id_rsa"), "-o", `UserKnownHostsFile=${join(cache, "known_hosts")}`,
   "-o", "StrictHostKeyChecking=yes", "-o", "HostKeyAlias=[127.0.0.1]:2224", "-o", "HostKeyAlgorithms=+ssh-rsa",
-  "-o", "PubkeyAcceptedAlgorithms=+ssh-rsa", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "root@127.0.0.1"];
+  "-o", "PubkeyAcceptedAlgorithms=+ssh-rsa", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5",
+  "-o", "ControlMaster=auto", "-o", "ControlPersist=15",
+  "-o", `ControlPath=/tmp/pocket-shell-touch-${process.pid}`, "root@127.0.0.1"];
 async function run(args: string[]): Promise<string> {
   const p = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", cwd: root });
   const [stdout, stderr, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited]);
@@ -56,10 +59,18 @@ const deviceHelper = "/private/var/tmp/pocket-shell-touch-input";
 const copy = Bun.spawn([...ssh, `cat > ${deviceHelper} && chmod 755 ${deviceHelper}`], { stdin: Bun.file(helper), stdout: "pipe", stderr: "pipe" });
 if (await copy.exited) throw new Error("Could not stage the test event sender");
 type Point = readonly [number, number, number];
+const icon = (index: number): Point[] => [[APPS[index].x + 28, APPS[index].y + 28, 120]];
 const gesture = (points: readonly Point[]) => remote(`${deviceHelper} --path ${points.flat().join(" ")}`);
 async function capture(name: string) {
   await remote(`rm -f ${shellQuote(framePath)}; /bin/su mobile -c ${shellQuote(`touch ${capturePath}`)}`);
-  await Bun.sleep(250);
+  // The capture request is polled by the native host; wait for the complete
+  // frame and the host clearing its request file after close(), instead of
+  // relying on SSH handshake time to hide that latency.
+  const deadline = Date.now() + 10_000;
+  while (await remote(`if [ -s ${shellQuote(framePath)} ] && [ ! -e ${shellQuote(capturePath)} ]; then echo ready; else echo pending; fi`) !== "ready") {
+    if (Date.now() >= deadline) throw new Error(`Timed out capturing ${name}`);
+    await Bun.sleep(100);
+  }
   const p = Bun.spawn([...ssh, `cat ${shellQuote(framePath)}`], { stdout: "pipe", stderr: "pipe" });
   const [raw, code] = await Promise.all([new Response(p.stdout).arrayBuffer(), p.exited]);
   if (code || raw.byteLength !== 640 * 960 * 4) throw new Error(`Invalid capture ${name}: ${raw.byteLength}`);
@@ -106,12 +117,13 @@ try {
   await journey("04b-quick-back-today", [[280, 466, 80], [80, 466, 450]]);
   await journey("05-ordinary-swipe-home", [[160, 466, 80], [160, 240, 1800]], true,
     { afterMs: 650, name: "05a-only-current-app-moving" });
-  for (const [name, x] of [["weather", 56], ["notes", 160], ["photos", 264]] as const) {
-    await journey(`06-${name}-open`, [[x, 276, 120]]);
+  for (const index of [3, 4, 5]) {
+    const name = APPS[index].name.toLowerCase();
+    await journey(`06-${name}-open`, icon(index));
     await journey(`07-${name}-scroll`, [[160, 389, 80], [160, 214, 350]]);
     await journey(`08-${name}-home`, [[160, 466, 80], [160, 425, 300]]);
   }
-  await journey("09-open-music", [[160, 375, 120]]);
+  await journey("09-open-music", icon(1));
   await journey("10-short-swipe-home", [[160, 466, 80], [160, 425, 300]]);
   await journey("11-peek-reverse-home", [[160, 466, 80], [160, 406, 300], [160, 406, 3500], [160, 466, 350]], false,
     { afterMs: 750, name: "11a-small-held-peek" });
@@ -150,25 +162,60 @@ try {
   }
   await switching; await Bun.sleep(850); await capture("20-after-quick-motion");
   await journey("21-home", [[160, 466, 80], [160, 425, 300]]);
-  await journey("22-open-music", [[160, 375, 120]]);
+  await journey("22-open-music", icon(1));
   await journey("23-lift-hold-overview", [[160, 466, 80], [160, 425, 300], [160, 425, 280]]);
-  for (const name of ["music", "photos", "notes", "weather", "today", "places"]) {
+  for (const name of ["music", "photos", "notes", "weather", "today", "places", ...APPS.slice(6).map(app => app.name.toLowerCase())]) {
     await journey(`24-close-${name}`, [[160, 250, 80], [160, 90, 350]]);
   }
   await journey("25-empty-to-home", [[160, 220, 120]]);
-  await journey("26-reopen-music", [[160, 375, 120]]);
+  await journey("26-reopen-music", icon(1));
   await journey("27-only-music-in-deck", [[160, 466, 80], [160, 425, 300], [160, 425, 280]]);
   await journey("28-open-only-music", [[160, 220, 120]]);
+  await journey("29-home-page-one", [[160, 466, 80], [160, 425, 300]]);
+  await journey("30-page-two", [[280, 200, 80], [140, 200, 300], [140, 200, 3500], [40, 200, 300]], true,
+    { afterMs: 750, name: "30a-home-pages-follow-finger" });
+  await journey("31-second-page-edge", [[250, 220, 80], [30, 220, 350]]);
+  await journey("32-page-one", [[40, 200, 80], [280, 200, 450]]);
+  await journey("33-page-reversal", [[280, 200, 80], [80, 200, 350], [280, 200, 350], [280, 200, 200]]);
+  await journey("34-vertical-home-drag", [[200, 310, 80], [200, 210, 350]], false);
+  // All new mockups launch from their actual icons and retain the originating page.
+  for (let index = 6; index < APPS.length; index++) {
+    if (index === 12) await journey("35-page-two-again", [[280, 200, 80], [40, 200, 400]]);
+    const name = APPS[index].name.toLowerCase();
+    await journey(`36-${name}-open`, icon(index));
+    await journey(`37-${name}-scroll`, [[160, 389, 80], [160, 214, 350]]);
+    await journey(`38-${name}-home`, [[160, 466, 80], [160, 425, 300]]);
+  }
+  await journey("39-dock-music-on-page-two", icon(1));
+  await journey("40-dock-return-to-page-two", [[160, 466, 80], [160, 425, 300]]);
+  await journey("41-page-two-overview", [[160, 466, 80], [160, 365, 350]]);
+  await journey("42-page-two-open-recent", [[160, 220, 120]]);
+  await journey("43-return-to-page-two", [[160, 466, 80], [160, 425, 300]]);
+  await journey("44-page-one", [[40, 200, 80], [280, 200, 450]]);
+  const homeMotion: Point[] = [[280, 210, 80]];
+  for (let i = 0; i < 12; i++) homeMotion.push([40, 210, 320], [280, 210, 320]);
+  homeMotion.push([280, 210, 150]);
+  await Bun.sleep(2500);
+  const homePaging = gesture(homeMotion), homeFps: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    await Bun.sleep(1600);
+    const sample = await status();
+    await Bun.write(join(output, `home-motion-${i}.status`), sample.raw + "\n");
+    homeFps.push(+sample.fields.window_frames * 1e6 / +sample.fields.window_us);
+  }
+  await homePaging; await Bun.sleep(850); await capture("45-home-after-paging");
   const final = await status();
-  if (+final.fields.touch_sequences !== results.length + 2 ||
-      +final.fields.completed_touch_sequences !== results.length + 2 || final.fields.touch_down !== "0") {
+  if (+final.fields.touch_sequences !== results.length + 3 ||
+      +final.fields.completed_touch_sequences !== results.length + 3 || final.fields.touch_down !== "0") {
     throw new Error("Unexpected input during the continuous-motion gestures");
   }
-  await Bun.write(join(output, "results.json"), JSON.stringify({ build: initial.fields.build_id, input: "GraphicsServices injected touch", results, quickFps, stackFps }, null, 2) + "\n");
+  await Bun.write(join(output, "results.json"), JSON.stringify({ build: initial.fields.build_id, input: "GraphicsServices injected touch", results, quickFps, stackFps, homeFps }, null, 2) + "\n");
   console.log(`Quick switch FPS: ${quickFps.map(n => n.toFixed(2)).join(", ")}`);
   console.log(`Stack parallax FPS: ${stackFps.map(n => n.toFixed(2)).join(", ")}`);
-  if ([...quickFps, ...stackFps].some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Continuous gesture rendering fell below 55 FPS");
+  console.log(`Home paging FPS: ${homeFps.map(n => n.toFixed(2)).join(", ")}`);
+  if ([...quickFps, ...stackFps, ...homeFps].some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Continuous gesture rendering fell below 55 FPS");
   console.log(`Validated ${results.length} journeys; captures and receipts: ${output}`);
 } finally {
   await remote(`rm -f ${deviceHelper}`);
+  await run([...ssh.slice(0, -1), "-O", "exit", ssh[ssh.length - 1]]);
 }

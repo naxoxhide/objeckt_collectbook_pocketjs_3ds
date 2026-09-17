@@ -30,18 +30,18 @@ function middleDeck() {
 describe("Touch shell continuous navigation", () => {
   test("opaque stacked cards skip fully covered windows but never a visible strip or a translucent cover", () => {
     const n = new Navigation(); lift(n, 16); settle(n);
-    expect(n.opened.map(i => n.cards[i].visibility.value)).toEqual([1, 1, 1, 1, 1, 1]);
-    expect(n.cards.map((_, i) => n.paintVisibility(i))).toEqual([1, 1, 0, 0, 0, 0]);
+    expect(n.opened.map(i => n.cards[i].visibility.value)).toEqual(Array(COUNT).fill(1));
+    expect(n.cards.slice(0, 6).map((_, i) => n.paintVisibility(i))).toEqual([1, 1, 0, 0, 0, 0]);
     n.cards[1].visibility.value = 0.5;
     expect(n.paintVisibility(2)).toBe(1);
     n.cards[1].visibility.value = 1;
     n.down(contact(160, 250)); n.move(contact(250, 250), 1 / 60);
     expect(n.paintVisibility(2)).toBe(1); // Paging exposes the next older strip.
   });
-  test("six desktop icons open distinct retained windows and move the chosen app to the newest end", () => {
+  test("desktop icons open distinct retained windows and move the chosen app to the newest end", () => {
     const n = new Navigation();
     expect(n.cards.length).toBe(COUNT);
-    expect(COUNT).toBe(6);
+    expect(COUNT).toBe(16);
     for (const i of [3, 4, 5, 0, 2, 1, 0]) {
       lift(n); settle(n);
       n.down(contact(ICON_X[i] + 28, ICON_Y[i] + 28));
@@ -435,7 +435,7 @@ describe("Touch shell continuous navigation", () => {
     expect(n.destination).toBe("switcher");
     expect(n.opened).toEqual([]);
     n.down(contact(160, 220)); n.up(contact(160, 220)); settle(n);
-    n.down(contact(160, 375)); n.up(contact(160, 375)); settle(n);
+    n.down(contact(ICON_X[1] + 28, ICON_Y[1] + 28)); n.up(contact(ICON_X[1] + 28, ICON_Y[1] + 28)); settle(n);
     expect(n.opened).toEqual([1]);
     expect(n.selected).toBe(1);
     expect(n.cards[1].scale.value).toBe(1);
