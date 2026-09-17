@@ -102,6 +102,7 @@ export class Navigation {
   readonly deck = axis(0);
   readonly homePage = axis(0);
   private stackDriven = false;
+  private homeEntryReady = false;
   // A quick-switch chain keeps its spatial order even as recency changes.
   private quickOrder: number[] = [];
   private quickSettling = false;
@@ -144,6 +145,7 @@ export class Navigation {
     this.quickSettling = false;
     this.quickOrder = [];
     this.destination = destination;
+    if (destination !== "home") this.homeEntryReady = false;
     this.overview.target = destination === "switcher" ? 1 : 0;
     if (destination === "app") this.foreground = this.selected;
     this.stackDriven = destination === "switcher";
@@ -284,13 +286,16 @@ export class Navigation {
     const shift = Math.max(0, ...poses.map(p => p.x + this.layout.width * p.scale)) + HOME_ENTRY_GAP;
     this.opened.forEach((i, rank) => {
       const card = this.cards[i], pose = poses[rank];
-      if (card.visibility.value > 0.001 && card.x.value < this.layout.width && card.x.value + this.layout.width * card.scale.value > 0) return;
+      // Catch a withdrawing left-edge peek, but never reuse a window still
+      // shrinking toward its Home icon as the next reveal's starting pose.
+      if (this.homeEntryReady && card.visibility.value > 0.001 && card.x.value < this.layout.width && card.x.value + this.layout.width * card.scale.value > 0) return;
       Object.assign(card.x, axis(pose.x - shift));
       Object.assign(card.y, axis(pose.y));
       Object.assign(card.scale, axis(pose.scale));
       // Opacity stays one throughout entry. The screen edge reveals the card.
       Object.assign(card.visibility, axis(1));
     });
+    this.homeEntryReady = true;
   }
 
   down(c: Contact): DragKind | null {
