@@ -353,6 +353,39 @@ describe("Touch shell continuous navigation", () => {
     }
   });
 
+  test("a fresh Home reveal enters from the left even while the last app is minimizing", () => {
+    for (const [width, height] of [[320, 480], [360, 640], [640, 360]]) {
+      for (const hz of [30, 60]) for (const index of [1, 5, 12]) for (const delay of [0, 0.1, 0.3, 0.5, 2]) {
+        const n = new Navigation(width, height), cx = width / 2, bar = height - 14;
+        n.open(index); settle(n, hz);
+        n.down(contact(cx, bar));
+        for (let frame = 1; frame <= hz / 2; frame++) {
+          n.move(contact(cx, bar - 90 * frame / (hz / 2)), 1 / hz); n.step(1 / hz);
+        }
+        n.up(contact(cx, bar - 90));
+        for (let frame = 0; frame < delay * hz; frame++) n.step(1 / hz);
+        expect(n.destination).toBe("home");
+        expect(n.down(contact(cx, bar))).toBe("reveal");
+        const card = n.cards[index], parked = [card.y.value, card.scale.value];
+        expect(card.x.value + width * card.scale.value).toBeLessThanOrEqual(0);
+        expect(card.scale.value).toBe(OVERVIEW_SCALE);
+        for (const lift of [24, 64, 180]) {
+          n.move(contact(cx, bar - lift), 1 / hz); n.step(1 / hz);
+          expect([card.y.value, card.scale.value]).toEqual(parked);
+          expect(card.x.value + width * card.scale.value).toBeLessThan(48);
+        }
+        const release = pose(n);
+        n.up(contact(cx, bar - 180));
+        expect(pose(n)).toEqual(release);
+        settle(n, hz);
+        expect(n.destination).toBe("switcher");
+        expect(n.selected).toBe(index);
+        expect(n.opened.at(-1)).toBe(index);
+        expect(card.scale.value).toBe(OVERVIEW_SCALE);
+      }
+    }
+  });
+
   test("a cancelled desktop peek can be caught without resetting visible cards", () => {
     const n = navigation();
     lift(n); settle(n);

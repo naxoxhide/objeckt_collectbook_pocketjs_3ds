@@ -83,6 +83,24 @@ describe('Nokia E7 native viewport', () => {
       collect(world.getTree(), nodes); expect(nodes).toHaveLength(16);
       const l = shellLayout(width, height), cx = width / 2, bar = height - 14;
       glide(cx, bar, cx, bar - 41);
+      // Re-enter from Home before Photos' icon minimization has faded out.
+      // Check the mounted painter, not only the navigation model's targets.
+      const photoIcon = l.icon(5), photo = nodes[5];
+      tap(photoIcon.x + 28, photoIcon.y + 28);
+      for (let i = 0; i <= 12; i++) frame(cx, Math.round(bar - 90 * i / 12));
+      frame();
+      for (let i = 0; i < 9; i++) frame();
+      frame(cx, bar);
+      expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
+      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeLessThanOrEqual(0);
+      frame(cx, bar - 90);
+      expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
+      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeGreaterThan(0);
+      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeLessThan(48);
+      frame(); idle();
+      expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
+      tap(cx, height / 2); // Reopen the centered Photos card, then return Home.
+      glide(cx, bar, cx, bar - 41);
       for (const [index] of APPS.entries()) {
         if (index === 12) glide(width - 40, 220, 40, 220);
         const icon = l.icon(index); tap(icon.x + 28, icon.y + 28);
