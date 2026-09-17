@@ -2,6 +2,7 @@
 // Destinations choose spring targets. They never replace a scene or reset its
 // presentation. A down edge catches the displayed pose, including mid-spring.
 import { APPS, HOME_PAGES, ICON_SIZE } from "./catalog.ts";
+import { shellLayout, type ShellLayout } from "./layout.ts";
 
 export const WIDTH = 320;
 export const HEIGHT = 480;
@@ -43,7 +44,7 @@ export function stepSpring(a: Axis, dt: number, frequency = 18): void {
 
 // One continuous coordinate drives the deck, including its release spring.
 // The left side compresses; the right side spreads out and leaves sooner.
-function stackPose(relative: number) {
+function stackPose(relative: number, width = WIDTH, height = HEIGHT, overviewY = OVERVIEW_Y) {
   const bend = 0.7;
   const offset = relative < 0 ? -STACK_PITCH / bend * Math.log(1 - bend * relative) :
     STACK_PITCH * (relative + bend * relative * relative / 2);
@@ -51,8 +52,8 @@ function stackPose(relative: number) {
   const falloff = Math.exp(-0.8 * relative * relative);
   const scale = OVERVIEW_SCALE - 0.055 * (1 - falloff);
   const ds = -0.088 * relative * falloff;
-  return { x: (WIDTH - WIDTH * scale) / 2 + offset, y: OVERVIEW_Y + HEIGHT * (OVERVIEW_SCALE - scale) / 2,
-    scale, dx: slope - WIDTH * ds / 2, dy: -HEIGHT * ds / 2, ds };
+  return { x: (width - width * scale) / 2 + offset, y: overviewY + height * (OVERVIEW_SCALE - scale) / 2,
+    scale, dx: slope - width * ds / 2, dy: -height * ds / 2, ds };
 }
 function removeSlop(value: number): number { return Math.sign(value) * Math.max(0, Math.abs(value) - PAN_SLOP); }
 
@@ -69,13 +70,33 @@ interface Drag {
 }
 
 export class Navigation {
+  layout: ShellLayout = shellLayout();
+  constructor(width = WIDTH, height = HEIGHT) { this.layout = shellLayout(width, height); }
+  private stackPose(relative: number) {
+    return stackPose(relative, this.layout.width, this.layout.height, this.layout.overviewY);
+  }
+
+  resize(width: number, height: number): void {
+    if (width === this.layout.width && height === this.layout.height) return;
+    const old = this.layout;
+    if (this.drag) this.up({ id: this.drag.id, x: this.drag.startX, y: this.drag.startY, vx: 0, vy: 0 }, true);
+    this.layout = shellLayout(width, height);
+    const horizontal = width / old.width, vertical = height / old.height;
+    for (const card of this.cards) {
+      for (const key of ["value", "target", "velocity"] as const) {
+        card.x[key] *= horizontal; card.y[key] *= vertical;
+      }
+    }
+    this.targets(this.destination, this.destination === "switcher");
+  }
+
   destination: Destination = "app";
   selected = 0;
   // Stable app IDs; membership and order are independent of mounted content.
   readonly opened: number[] = APPS.map((_, i) => COUNT - i - 1);
   readonly cards: Card[] = Array.from({ length: COUNT }, (_, i) => ({
-    x: axis(i === 0 ? 0 : stackPose(-i).x), y: axis(i === 0 ? 0 : stackPose(-i).y),
-    scale: axis(i === 0 ? 1 : stackPose(-i).scale), visibility: axis(i === 0 ? 1 : 0),
+    x: axis(i === 0 ? 0 : this.stackPose(-i).x), y: axis(i === 0 ? 0 : this.stackPose(-i).y),
+    scale: axis(i === 0 ? 1 : this.stackPose(-i).scale), visibility: axis(i === 0 ? 1 : 0),
   }));
   readonly deck = axis(0);
   readonly homePage = axis(0);
@@ -100,14 +121,14 @@ export class Navigation {
     const card = this.cards[index], opacity = clamp(card.visibility.value);
     if (!opacity) return 0;
     const left = Math.max(0, card.x.value), top = Math.max(0, card.y.value);
-    const right = Math.min(WIDTH, card.x.value + WIDTH * card.scale.value);
-    const bottom = Math.min(HEIGHT, card.y.value + HEIGHT * card.scale.value);
+    const right = Math.min(this.layout.width, card.x.value + this.layout.width * card.scale.value);
+    const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
     if (right <= left || bottom <= top) return opacity;
     for (const i of this.opened) {
       const other = this.cards[i];
       if (this.layer(i) <= this.layer(index) || other.visibility.value < 1) continue;
       const x = other.x.value, y = other.y.value;
-      const r = x + WIDTH * other.scale.value, b = y + HEIGHT * other.scale.value;
+      const r = x + this.layout.width * other.scale.value, b = y + this.layout.height * other.scale.value;
       // Two rectangles inside the rounded card, inset one point for raster
       // edges. Only fully covered windows skip painting; content stays mounted.
       const inset = 28 * other.scale.value + 1;
@@ -131,18 +152,18 @@ export class Navigation {
     this.deck.target = rank;
     this.cards.forEach((card, i) => {
       if (!this.opened.includes(i)) return;
-      const pose = stackPose(this.opened.indexOf(i) - rank);
+      const pose = this.stackPose(this.opened.indexOf(i) - rank);
       const foreground = destination === "app" && i === this.selected;
       const minimize = destination === "home" && source === "app" && i === this.selected;
       // Only the foreground app returns to its icon. Background windows keep
       // their compact pose; leaving the switcher sends the deck to the left.
-      card.scale.target = foreground ? 1 : minimize ? 0.175 : destination === "home" ? card.scale.value : pose.scale;
+      card.scale.target = foreground ? 1 : minimize ? ICON_SIZE / this.layout.width : destination === "home" ? card.scale.value : pose.scale;
       card.x.target = foreground ? 0 : minimize ? this.iconX(i) : destination === "home" ?
-        card.x.value - (source === "app" ? 0 : WIDTH * 2 + 32) : pose.x;
-      card.y.target = foreground ? 0 : minimize ? ICON_Y[i] - 14 : destination === "home" ? card.y.value : pose.y;
+        card.x.value - (source === "app" ? 0 : this.layout.width * 2 + 32) : pose.x;
+      card.y.target = foreground ? 0 : minimize ? this.iconWindowY(i) : destination === "home" ? card.y.value : pose.y;
       card.visibility.target = foreground || destination === "switcher" ? 1 : 0;
       if (this.stackDriven) {
-        const actual = stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
+        const actual = this.stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
         // Residual springs absorb a caught app transition or dismissed neighbor.
         // Position and velocity at release remain unchanged.
         for (const key of ["x", "y", "scale"] as const) {
@@ -156,7 +177,7 @@ export class Navigation {
 
   private paintStack(dt: number, settleOffsets: boolean): void {
     this.opened.forEach(i => {
-      const card = this.cards[i], pose = stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
+      const card = this.cards[i], pose = this.stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
       for (const key of ["x", "y", "scale"] as const) {
         if (settleOffsets) stepSpring(offset[key], dt);
         const derivative = key === "x" ? pose.dx : key === "y" ? pose.dy : pose.ds;
@@ -185,7 +206,7 @@ export class Navigation {
     const rank = order.indexOf(this.selected);
     order.forEach((i, at) => {
       const card = this.cards[i];
-      card.x.target = (at - rank) * (WIDTH + QUICK_GAP);
+      card.x.target = (at - rank) * (this.layout.width + QUICK_GAP);
       card.y.target = 0;
       card.scale.target = 1;
       card.visibility.target = 1;
@@ -197,12 +218,12 @@ export class Navigation {
     const reopening = !this.opened.includes(index);
     this.markRecent(index);
     const card = this.cards[index];
-    const visible = card.visibility.value > 0.001 && card.x.value < WIDTH && card.y.value < HEIGHT &&
-      card.x.value + WIDTH * card.scale.value > 0 && card.y.value + HEIGHT * card.scale.value > 0;
+    const visible = card.visibility.value > 0.001 && card.x.value < this.layout.width && card.y.value < this.layout.height &&
+      card.x.value + this.layout.width * card.scale.value > 0 && card.y.value + this.layout.height * card.scale.value > 0;
     if ((reopening || this.destination === "home") && !visible) {
       Object.assign(card.x, axis(this.iconX(index)));
-      Object.assign(card.y, axis(ICON_Y[index] - 14));
-      Object.assign(card.scale, axis(0.175));
+      Object.assign(card.y, axis(this.iconWindowY(index)));
+      Object.assign(card.scale, axis(ICON_SIZE / this.layout.width));
       Object.assign(card.visibility, axis(0));
     }
     if (this.destination === "home" && APPS[index].page >= 0) this.homePage.target = APPS[index].page;
@@ -217,40 +238,44 @@ export class Navigation {
     if (rank < 0) return;
     this.opened.splice(rank, 1);
     const card = this.cards[index];
-    card.y.target = -HEIGHT * card.scale.value - 40;
+    card.y.target = -this.layout.height * card.scale.value - 40;
     card.visibility.target = 0;
     if (this.selected === index) this.selected = this.opened[Math.min(rank, this.opened.length - 1)] ?? index;
     this.targets("switcher");
     this.record("close");
   }
 
+  private iconWindowY(index: number): number {
+    return this.layout.icon(index).y + (ICON_SIZE - this.layout.height * ICON_SIZE / this.layout.width) / 2;
+  }
+
   iconX(index: number): number {
     const app = APPS[index];
-    return app.x + (app.page < 0 ? 0 : (app.page - this.homePage.value) * WIDTH);
+    return this.layout.icon(index).x + (app.page < 0 ? 0 : (app.page - this.homePage.value) * this.layout.width);
   }
 
   hitHomeIcon(x: number, y: number): number {
     return APPS.findIndex((app, i) => x >= this.iconX(i) - 7 && x < this.iconX(i) + ICON_SIZE + 7 &&
-      y >= app.y - 8 && y < app.y + 82);
+      y >= this.layout.icon(i).y - 8 && y < this.layout.icon(i).y + 82);
   }
 
   hitCard(x: number, y: number): number {
     for (const i of [...this.opened].sort((a, b) => this.layer(b) - this.layer(a))) {
       if (!this.opened.includes(i)) continue;
       const c = this.cards[i];
-      if (c.visibility.value > 0.01 && x >= c.x.value && x <= c.x.value + WIDTH * c.scale.value &&
-          y >= c.y.value && y <= c.y.value + HEIGHT * c.scale.value) return i;
+      if (c.visibility.value > 0.01 && x >= c.x.value && x <= c.x.value + this.layout.width * c.scale.value &&
+          y >= c.y.value && y <= c.y.value + this.layout.height * c.scale.value) return i;
     }
     return -1;
   }
 
   private prepareLeftEntry(): void {
     const rank = Math.max(0, this.opened.indexOf(this.selected));
-    const poses = this.opened.map((_, i) => stackPose(i - rank));
-    const shift = Math.max(0, ...poses.map(p => p.x + WIDTH * p.scale)) + HOME_ENTRY_GAP;
+    const poses = this.opened.map((_, i) => this.stackPose(i - rank));
+    const shift = Math.max(0, ...poses.map(p => p.x + this.layout.width * p.scale)) + HOME_ENTRY_GAP;
     this.opened.forEach((i, rank) => {
       const card = this.cards[i], pose = poses[rank];
-      if (card.visibility.value > 0.001 && card.x.value < WIDTH && card.x.value + WIDTH * card.scale.value > 0) return;
+      if (card.visibility.value > 0.001 && card.x.value < this.layout.width && card.x.value + this.layout.width * card.scale.value > 0) return;
       Object.assign(card.x, axis(pose.x - shift));
       Object.assign(card.y, axis(pose.y));
       Object.assign(card.scale, axis(pose.scale));
@@ -263,10 +288,10 @@ export class Navigation {
     if (this.drag) return null; // A second contact cannot steal the anchor.
     const active = this.cards[this.selected];
     const inFlight = this.opened.includes(this.selected) && Math.abs(active.scale.value - active.scale.target) > 0.015;
-    const kind: DragKind = this.destination === "home" && c.y >= 432 ? "reveal" :
+    const kind: DragKind = this.destination === "home" && c.y >= this.layout.height - 48 ? "reveal" :
       this.destination === "home" && !inFlight ? "home" :
       this.destination === "switcher" ? "pager" :
-      (c.y >= 432 || inFlight || this.quickSettling) ? "navigation" :
+      (c.y >= this.layout.height - 48 || inFlight || this.quickSettling) ? "navigation" :
       (c.x < 30 && this.selected === 0 && this.detail.value > 0.01) ? "back" :
       (this.selected === 0 && this.detail.value > 0.01) ? "detail" : "content";
     if (kind === "navigation" || kind === "reveal" || kind === "pager") this.foreground = -1;
@@ -326,15 +351,15 @@ export class Navigation {
           const relative = d.order.indexOf(i) - d.order.indexOf(d.selected);
           // Hidden cards may be rebased onto this row. Their release velocity
           // comes from the row, not from that offscreen repositioning.
-          other.x.value = card.x.value + relative * (WIDTH * s + QUICK_GAP);
-          other.x.velocity = card.x.velocity + relative * WIDTH * card.scale.velocity;
+          other.x.value = card.x.value + relative * (this.layout.width * s + QUICK_GAP);
+          other.x.velocity = card.x.velocity + relative * this.layout.width * card.scale.velocity;
           other.y.value = card.y.value; other.y.velocity = card.y.velocity;
           other.scale.value = s; other.scale.velocity = card.scale.velocity;
           this.follow(other.visibility, d.quick, dt);
           other.visibility.target = d.quick;
         } else {
           if (other.visibility.value < 0.001) {
-            const pose = stackPose(this.opened.indexOf(i) - this.opened.indexOf(this.selected));
+            const pose = this.stackPose(this.opened.indexOf(i) - this.opened.indexOf(this.selected));
             if (other.scale.value > OVERVIEW_SCALE) for (const key of ["x", "y", "scale"] as const) Object.assign(other[key], axis(pose[key]));
           }
           other.visibility.target = this.overview.target;
@@ -342,7 +367,7 @@ export class Navigation {
       });
     } else if (d.kind === "reveal") {
       const lift = Math.max(0, -dy);
-      const poses = this.opened.map((_, rank) => stackPose(rank - this.opened.indexOf(this.selected)));
+      const poses = this.opened.map((_, rank) => this.stackPose(rank - this.opened.indexOf(this.selected)));
       const distance = Math.max(1, ...this.opened.map((i, rank) => poses[rank].x - d.cards[i].x));
       // A held contact only peeks past the left edge, regardless of deck width.
       // Resistance has no hard stop; release springs the remaining distance.
@@ -365,7 +390,7 @@ export class Navigation {
       }
       if (d.direction === "horizontal" && this.opened.length) {
         const rank = this.opened.indexOf(d.pivot), relative = rank - d.deck;
-        const point = (r: number) => { const p = stackPose(r); return p.x + d.anchorX * p.scale; };
+        const point = (r: number) => { const p = this.stackPose(r); return p.x + d.anchorX * p.scale; };
         const initial = point(relative);
         const low = Math.min(0, point(rank - this.opened.length + 1) - initial);
         const high = Math.max(0, point(rank) - initial);
@@ -376,7 +401,7 @@ export class Navigation {
         // beneath the finger, even as that card changes depth and scale.
         let r = relative + travel / STACK_PITCH;
         for (let i = 0; i < 6; i++) {
-          const p = stackPose(r);
+          const p = this.stackPose(r);
           r -= (p.x + d.anchorX * p.scale - initial - travel) / (p.dx + d.anchorX * p.ds);
         }
         this.follow(this.deck, rank - r, dt);
@@ -397,13 +422,13 @@ export class Navigation {
         const edge = clamp(d.homePage, 0, HOME_PAGES - 1), excess = d.homePage - edge;
         // A fast release can carry the spring past the normal drag limit.
         // Fit the caught pose inside this contact's curve before inverting it.
-        const limit = Math.max(90 / WIDTH, Math.abs(excess) * 2);
-        const raw = edge + excess / (1 - Math.abs(excess) / limit) - removeSlop(dx) / WIDTH;
+        const limit = Math.max(90 / this.layout.width, Math.abs(excess) * 2);
+        const raw = edge + excess / (1 - Math.abs(excess) / limit) - removeSlop(dx) / this.layout.width;
         const bounded = clamp(raw, 0, HOME_PAGES - 1), over = raw - bounded;
         this.follow(this.homePage, bounded + over / (1 + Math.abs(over) / limit), dt);
       }
     } else if (d.kind === "back") {
-      this.follow(this.detail, clamp(d.detail - dx / WIDTH), dt);
+      this.follow(this.detail, clamp(d.detail - dx / this.layout.width), dt);
     }
   }
 
@@ -454,7 +479,7 @@ export class Navigation {
         this.close(d.hit);
       } else {
         if (this.opened.length && d.direction === "horizontal") {
-          const pose = stackPose(this.opened.indexOf(d.pivot) - this.deck.value);
+          const pose = this.stackPose(this.opened.indexOf(d.pivot) - this.deck.value);
           this.deck.velocity = -c.vx / (pose.dx + d.anchorX * pose.ds);
           const rank = clamp(Math.round(this.deck.value + this.deck.velocity * 0.16), 0, this.opened.length - 1);
           this.selected = this.opened[rank];
@@ -464,7 +489,7 @@ export class Navigation {
       }
     } else if (d.kind === "home") {
       if (d.direction === "horizontal") {
-        this.homePage.velocity = -c.vx / WIDTH;
+        this.homePage.velocity = -c.vx / this.layout.width;
         this.homePage.target = Math.round(clamp(this.homePage.value + this.homePage.velocity * 0.18, 0, HOME_PAGES - 1));
         this.record("home-page");
       } else if (!d.moved) {
@@ -472,13 +497,13 @@ export class Navigation {
         if (index >= 0 && index === d.hit) this.open(index);
       }
     } else if (d.kind === "back") {
-      this.detail.target = d.dx + c.vx * 0.12 > WIDTH * 0.35 ? 0 : 1;
+      this.detail.target = d.dx + c.vx * 0.12 > this.layout.width * 0.35 ? 0 : 1;
       if (this.detail.target === 0) this.record("back");
     } else if (d.kind === "detail" && !d.moved && c.x < 100 && c.y < 90) {
       this.detail.target = 0;
       this.record("back");
     } else if (d.kind === "content") {
-      if (!d.moved && this.selected === 0 && c.y > 155 && c.y < 430) {
+      if (!d.moved && this.selected === 0 && c.y > this.layout.contentTop + 29 && c.y < this.layout.height - 50) {
         this.detail.target = 1;
         this.record("detail");
       } else if (d.moved) this.record("scroll");
@@ -513,7 +538,7 @@ export class Navigation {
         this.quickSettling = false;
         this.opened.forEach((i, rank) => {
           if (i === this.selected) return;
-          const card = this.cards[i], pose = stackPose(rank - this.opened.indexOf(this.selected));
+          const card = this.cards[i], pose = this.stackPose(rank - this.opened.indexOf(this.selected));
           Object.assign(card.visibility, axis(0));
           for (const key of ["x", "y", "scale"] as const) Object.assign(card[key], axis(pose[key]));
         });

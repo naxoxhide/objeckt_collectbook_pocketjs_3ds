@@ -10,6 +10,9 @@
       "requires": [
         "input.touch",
         "text.glyphs.baked"
+      ],
+      "enhances": [
+        "display.viewport.live"
       ]
     }
   },
@@ -24,6 +27,20 @@
           480
         ],
         "presentation": "native"
+      },
+      "dynamic": {
+        "default": [
+          360,
+          640
+        ],
+        "min": [
+          320,
+          320
+        ],
+        "max": [
+          640,
+          640
+        ]
       }
     }
   }
