@@ -211,7 +211,7 @@ try {
   await journey("50-browse-calculator", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
   await journey("51-open-calculator-from-page-one", [[160, 220, 120]]);
   await journey("52-off-page-app-minimizes-on-page-one", [[160, 466, 80], [160, 425, 300]], true,
-    { afterMs: 430, name: "52a-off-page-app-shrinks-inside-current-page" });
+    { afterMs: 570, name: "52a-off-page-app-shrinks-inside-current-page" });
   await journey("53-home-reveals-recent-calculator", [[160, 466, 80], [160, 365, 350]]);
   await journey("54-leave-on-home-page-one", [[310, 425, 120]]);
   const final = await status();
