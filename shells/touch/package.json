@@ -1,0 +1,15 @@
+{
+  "name": "@pocket-shell/touch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "typecheck": "bun ../../vendor/pocketjs/node_modules/typescript/bin/tsc --noEmit",
+    "touch": "bun scripts/touch.ts",
+    "guest": "bun scripts/touch.ts guest",
+    "test": "bun ../../vendor/pocketjs/tools/wasm.ts && bun run guest && bun test --conditions=browser test",
+    "test:device": "bun test/device.ts",
+    "check": "bun run typecheck && bun run test"
+  }
+}

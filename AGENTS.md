@@ -5,7 +5,7 @@ Pocket Shell is a product built on PocketJS, which arrives as the
 change lands in [pocket-stack/pocketjs](https://github.com/pocket-stack/pocketjs)
 first, and this repository moves its pin.
 
-The repository holds **three shells**, and a change belongs
+The repository holds **four shells**, and a change belongs
 to one of them:
 
 - `shells/3ds/` — the 3DS shell. **Its only platform is the Nintendo 3DS**: two
@@ -14,6 +14,8 @@ to one of them:
   only makes sense on some other machine does not belong in it.
 - `shells/ipod/` — Pocket Shell on the iPod touch 4, an Omarchy companion (a guest
   app plus the daemon it talks to). Its own README carries the design.
+- `shells/touch/` — Pocket Shell Touch, a portrait gesture shell with retained
+  mock apps on iPod touch 4. It owns navigation, window recency and its device tests.
 - `shells/desktop/` — the shell for desktop operating systems, imported from
   pocket-desktop. It owns windows, application presentation and themes.
   PocketJS owns package isolation, scheduling and native composition.
@@ -23,7 +25,7 @@ Each shell owns its sources, manifests, scripts, tests, assets and documentation
 Root scripts provide setup and command routing. They share one runtime
 submodule; application code stays separate until a concrete shared need exists.
 
-This project is distributed under **GPLv3**. Root, 3DS and iPod code remains
+This project is distributed under **GPLv3**. Root, 3DS, iPod and touch code remains
 **GPL-3.0-or-later**; imported desktop code retains **GPL-3.0-only**. New source
 files carry the corresponding SPDX line. PocketJS remains MIT and third-party
 fonts retain their own licenses. See `LICENSING.md`.
@@ -54,7 +56,7 @@ documentation or tests. New validation runs stay in ignored artifact folders.
 ## The loop
 
 ```sh
-bun run check                        # typecheck + all three shells' unit and sim tests
+bun run check                        # typecheck + all four shells' unit and sim tests
 bun run push --host <console-ip>     # rebuild the guest, hot-push it (~20 s)
 bun run shot --host <console-ip>     # a screenshot of both screens
 bun run 3ds                          # the full .3dsx — needed for a reflash
@@ -72,6 +74,9 @@ bun run omarchy logs x1nano               # what the daemon saw
 bun run omarchy menu x1nano               # regenerate shells/ipod/src/menu.ts from the machine
 bun run omarchy shots media          # re-render its screens in the sim
 ```
+
+The touch shell uses `bun run touch guest|deploy|launch|status|capture` and
+`bun run check:touch`. Its own README includes the device test loop.
 
 Desktop commands run through the root dispatcher:
 
