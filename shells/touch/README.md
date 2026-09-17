@@ -1,6 +1,7 @@
 # Pocket Shell Touch
 
-A PocketJS navigation demo for the iPod touch 4's 320 × 480 logical viewport.
+A PocketJS navigation demo for iPod touch 4 (320 × 480 logical points) and
+Nokia E7 (360 × 640 portrait or 640 × 360 landscape).
 Sixteen retained mock apps share two Home pages: Today, Music, Places, Weather,
 Notes, Photos, Mail, Calendar, Clock, Safari, Files, Settings, Camera, Health,
 Books and Calculator. They contain sample content and do not connect to external
@@ -106,7 +107,7 @@ bun run touch status --require-action
 bun run touch capture
 ```
 
-The shell owns its portrait app, sixteen mockups, gesture model, assets and tests.
+The shell owns its app, sixteen mockups, gesture model, assets and tests.
 The Omarchy companion remains in `shells/ipod`. The shared runtime, renderer,
 UIKit host and installer come from the pinned `vendor/pocketjs` submodule.
 
@@ -116,6 +117,47 @@ bundle is `PocketShellTouch.app`; `pocketjs-shell-touch://launch` opens it and
 `dev.pocket-stack.fluid` remains stable so deployment updates the existing app
 and retains its User container. It is a compatibility identifier, not the
 shell's display name.
+
+### Nokia E7
+
+The E7 uses the Symbian host in the pinned PocketJS mainline runtime. **The
+viewport follows the native orientation.** Portrait centers the four-column
+grid and app content; landscape places app content to the right of its title.
+The dock and gesture bar stay at the bottom. Wallpaper preserves its aspect
+ratio and covers the viewport.
+
+The same navigation model drives both devices. Window dimensions, icon hit
+targets, minimizing destinations, deck positions and content extents use the
+current viewport. Rotating cancels the previous contact before its release can
+commit an action, then retains open-window order, selected app and Home page.
+The E7 host presents at **30 Hz with two 60 Hz core ticks per frame**, and sends
+the wide touch format so coordinates beyond 511 reach the guest.
+
+With the phone connected in Nokia Suite mode and CODA available:
+
+```sh
+bun run touch:e7 setup
+bun run touch:e7 doctor
+bun run touch:e7 build
+bun run touch:e7 deploy
+bun run touch:e7 launch
+bun run touch:e7 status
+```
+
+Build uses the PocketJS Docker toolchain and writes the signed SIS and receipt
+to `.pocket-build/symbian/touch/`. Deploy creates a local Python environment
+with PyUSB 1.3.1, transfers the SIS through CODA in 1 KiB router frames, reads
+back its bytes, stops this package's old process, installs it and queries the
+installed package. The staging filename contains the package UID and build
+hash; repeated deployments can replace that file. The host needs Python 3.9+
+and libusb, which `doctor` checks as part of the USB tooling.
+
+The package UID is `0xEA360236`; its executable is
+`PocketJsPocketshellToucEA360236.exe`. `status` reports package version and
+matching processes. **A running process does not prove a rendered frame or
+physical touch response.** Mounted-guest tests exercise both native dimensions,
+all sixteen icons, the wide touch wire and rotation cancellation; physical
+screen and gesture checks remain device acceptance steps.
 
 ## Validation
 

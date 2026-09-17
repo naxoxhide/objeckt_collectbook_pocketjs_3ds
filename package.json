@@ -30,7 +30,8 @@
     "check:desktop": "bun run --cwd shells/desktop check",
     "check:assets": "bun scripts/check-assets.ts",
     "touch": "bun run --cwd shells/touch touch",
-    "check:touch": "bun run --cwd shells/touch check"
+    "check:touch": "bun run --cwd shells/touch check",
+    "touch:e7": "bun run --cwd shells/touch e7"
   },
   "workspaces": [
     "shells/*"

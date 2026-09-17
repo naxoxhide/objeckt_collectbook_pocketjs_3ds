@@ -13,6 +13,7 @@
       "bun-types"
     ],
     "paths": {
+      "tools/*": ["../../vendor/pocketjs/tools/*"],
       "@pocketjs/framework": [
         "../../vendor/pocketjs/framework/src/index.ts"
       ],

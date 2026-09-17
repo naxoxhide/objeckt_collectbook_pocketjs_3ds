@@ -8,8 +8,9 @@
     "typecheck": "bun ../../vendor/pocketjs/node_modules/typescript/bin/tsc --noEmit",
     "touch": "bun scripts/touch.ts",
     "guest": "bun scripts/touch.ts guest",
-    "test": "bun ../../vendor/pocketjs/tools/wasm.ts && bun run guest && bun test --conditions=browser test",
+    "test": "bun ../../vendor/pocketjs/tools/wasm.ts && bun run guest && bun run e7 guest && python3 -B test/e7_device_test.py && bun test --conditions=browser test",
     "test:device": "bun test/device.ts",
-    "check": "bun run typecheck && bun run test"
+    "check": "bun run typecheck && bun run test",
+    "e7": "bun scripts/e7.ts"
   }
 }
