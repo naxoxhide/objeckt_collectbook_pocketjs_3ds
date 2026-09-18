@@ -133,6 +133,36 @@ async function sampleMotion(name: string, points: readonly Point[], count: numbe
   return samples;
 }
 
+// Full and focused runs enter the stack with identical app order, scroll
+// offsets and gesture history; an unscrolled neighborhood is a lighter scene.
+async function prepareStack() {
+  await journey("00b-open-today", icon(0));
+  await journey("01-scroll", [[160, 389, 80], [160, 214, 350]]);
+  await journey("02-detail", [[110, 230, 120]]);
+  await journey("03-edge-back", [[4, 238, 80], [221, 238, 420]]);
+  await journey("04-quick-switch-music", [[40, 466, 80], [220, 466, 450], [220, 466, 3500]], true,
+    { afterMs: 800, name: "04a-equal-size-neighbor-before-release" });
+  await journey("04b-quick-back-today", [[280, 466, 80], [80, 466, 450]]);
+  await journey("05-ordinary-swipe-home", [[160, 466, 80], [160, 240, 1800]], true,
+    { afterMs: 650, name: "05a-only-current-app-moving" });
+  for (const index of [3, 4, 5]) {
+    const name = APPS[index].name.toLowerCase();
+    await journey(`06-${name}-open`, icon(index));
+    await journey(`07-${name}-scroll`, [[160, 389, 80], [160, 214, 350]]);
+    await journey(`08-${name}-home`, [[160, 466, 80], [160, 425, 300]]);
+  }
+  await journey("09-open-music", icon(1));
+  await journey("10-short-swipe-home", [[160, 466, 80], [160, 425, 300]]);
+  await journey("11-peek-reverse-home", [[160, 466, 80], [160, 406, 300], [160, 406, 3500], [160, 466, 350]], false,
+    { afterMs: 750, name: "11a-small-held-peek" });
+  await journey("12-home-bar-overview", [[160, 466, 80], [160, 66, 500], [160, 66, 3500]], true,
+    { afterMs: 850, name: "12a-large-lift-small-left-peek" });
+  await journey("13-browse-to-photos", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
+  await journey("14-parallax-reversal", [[160, 250, 80], [196, 250, 300], [196, 250, 3500], [160, 250, 300], [160, 250, 150]], true,
+    { afterMs: 700, name: "14a-parallax-held" });
+  await journey("15-horizontal-ignores-upward-motion", [[160, 250, 80], [185, 252, 160], [190, 145, 250], [190, 145, 150]]);
+}
+
 try {
   // A fresh process makes this named journey reproducible.
   await remote(`/usr/bin/killall PocketShellTouch 2>/dev/null || true`);
@@ -140,14 +170,8 @@ try {
   await Bun.sleep(1600);
   const restarted = await capture("00-home");
   if (restarted.fields.touch_sequences !== "0") throw new Error("Fresh process received input before validation");
+  await prepareStack();
   if (process.argv.includes("--motion-only")) {
-    // Reproduce the Photos/Notes/Music neighborhood from the full journey.
-    for (const index of [3, 4, 5, 1]) {
-      await journey(`motion-open-${index}`, icon(index));
-      await journey(`motion-home-${index}`, [[160, 466, 80], [160, 425, 300]]);
-    }
-    await journey("motion-overview", [[160, 466, 80], [160, 365, 350]]);
-    await journey("motion-browse-photos", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
     const points: Point[] = [[160, 250, 80]];
     for (let i = 0; i < 12; i++) points.push([235, 250, 320], [90, 250, 320]);
     points.push([160, 250, 300], [160, 250, 150]);
@@ -165,31 +189,6 @@ try {
     console.log(`Repeated stack FPS: ${samples.map(n => n.toFixed(2)).join(", ")}`);
     if (samples.some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Repeated stack rendering fell below 55 FPS");
   } else {
-    await journey("00b-open-today", icon(0));
-    await journey("01-scroll", [[160, 389, 80], [160, 214, 350]]);
-    await journey("02-detail", [[110, 230, 120]]);
-    await journey("03-edge-back", [[4, 238, 80], [221, 238, 420]]);
-    await journey("04-quick-switch-music", [[40, 466, 80], [220, 466, 450], [220, 466, 3500]], true,
-      { afterMs: 800, name: "04a-equal-size-neighbor-before-release" });
-    await journey("04b-quick-back-today", [[280, 466, 80], [80, 466, 450]]);
-    await journey("05-ordinary-swipe-home", [[160, 466, 80], [160, 240, 1800]], true,
-      { afterMs: 650, name: "05a-only-current-app-moving" });
-    for (const index of [3, 4, 5]) {
-      const name = APPS[index].name.toLowerCase();
-      await journey(`06-${name}-open`, icon(index));
-      await journey(`07-${name}-scroll`, [[160, 389, 80], [160, 214, 350]]);
-      await journey(`08-${name}-home`, [[160, 466, 80], [160, 425, 300]]);
-    }
-    await journey("09-open-music", icon(1));
-    await journey("10-short-swipe-home", [[160, 466, 80], [160, 425, 300]]);
-    await journey("11-peek-reverse-home", [[160, 466, 80], [160, 406, 300], [160, 406, 3500], [160, 466, 350]], false,
-      { afterMs: 750, name: "11a-small-held-peek" });
-    await journey("12-home-bar-overview", [[160, 466, 80], [160, 66, 500], [160, 66, 3500]], true,
-      { afterMs: 850, name: "12a-large-lift-small-left-peek" });
-    await journey("13-browse-to-photos", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
-    await journey("14-parallax-reversal", [[160, 250, 80], [196, 250, 300], [196, 250, 3500], [160, 250, 300], [160, 250, 150]], true,
-      { afterMs: 700, name: "14a-parallax-held" });
-    await journey("15-horizontal-ignores-upward-motion", [[160, 250, 80], [185, 252, 160], [190, 145, 250], [190, 145, 150]]);
     const stackMotion: Point[] = [[160, 250, 80]];
     for (let i = 0; i < 12; i++) stackMotion.push([235, 250, 320], [90, 250, 320]);
     stackMotion.push([160, 250, 300], [160, 250, 150]);
