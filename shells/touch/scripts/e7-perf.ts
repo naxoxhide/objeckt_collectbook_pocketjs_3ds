@@ -60,9 +60,17 @@ if (command === 'make') {
   const rows = lines.filter(l => /^\d+\t/.test(l)).map(l => Object.fromEntries(l.split('\t').map((v, i) => [keys[i], Number(v)])));
   const at = (r: Record<string, number>) => r.replay_ms ?? r.elapsed_ms;
   if (!rows.length || at(rows.at(-1)!) < 29900) throw new Error('Incomplete 30 second workload');
+  if (scenario === 'deck-dismiss') {
+    const intervals = [2000, 4000, 6500, 8000, 9500, 11000, 12500, 17500, 19500].map(t => [t, t + 375]);
+    intervals.push([14000, 14150], [21000, 21150]);
+    // Real touches can interleave with injected input. Reject interference
+    // before either measured exit, including contacts during startup/idle.
+    const interference = rows.find(r => at(r) < 21650 && r.touches !== Number(intervals.some(([a, b]) => at(r) >= a && at(r) < b)));
+    if (interference) throw new Error(`Replay touch mismatch at ${at(interference)} ms; leave the screen untouched during measurement`);
+  }
   const phases = scenario === 'deck-dismiss' ?
     [['browsed-deck', 13000, 14000], ['dismiss-start', 14150, 14350], ['dismiss', 14150, 14650],
-      ['dismiss-again', 21150, 21650], ['idle-home', 25000, 29000]] as const :
+      ['dismiss-again', 21150, 21650]] as const :
     [['idle-app', 500, 1950], ['home-pages', 4000, 13500], ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
   const metrics = phases.map(([name, from, to]) => {
     const part = rows.filter(r => at(r) >= from && at(r) < to &&
