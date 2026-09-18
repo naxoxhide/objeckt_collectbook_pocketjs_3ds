@@ -30,7 +30,7 @@ async function device(action: 'deploy' | 'install' | 'status') {
 const actions: Record<string, string[]> = {
   setup: ['setup', '--yes'],
   doctor: ['doctor', '--device', '--coda-usb'],
-  build: ['build', 'app', '--manifest', manifest, '--project-root', ROOT, '--outdir', output, '--frame-rate', '60', '--sis-version', '0.3.26'],
+  build: ['build', 'app', '--manifest', manifest, '--project-root', ROOT, '--outdir', output, '--frame-rate', '60', '--sis-version', '0.3.67'],
   launch: ['coda', 'usb', 'launch', identity.executable + '.exe'],
 };
 if (command === 'deploy' || command === 'install' || command === 'status') {

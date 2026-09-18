@@ -48,15 +48,30 @@ describe("Touch shell through the mounted PocketJS guest", () => {
     expect(nodes).toHaveLength(APPS.length);
     for (const { name } of APPS) expect(treeHasText(initialTree, name)).toBe(true);
     expect(treeHasText(initialTree, "Today")).toBe(true);
-    const prop = (index: number, property: number) => writes.get(nodes[index])!.get(property)!;
+    const clips = nodes.map((_, i) => named.get(`TouchCardClip${i}`)!);
+    const contentClips = nodes.map((_, i) => named.get(`TouchContentClip${i}`)!);
+    const contentPlanes = nodes.map((_, i) => named.get(`TouchContentPlane${i}`)!);
+    const prop = (index: number, property: number) => writes.get(nodes[index])!.get(property)! +
+      (property === PROP.translateX ? writes.get(clips[index])!.get(PROP.translateX)! : 0);
     function checkCullingPixels() {
       const saved = nodes.flatMap((node, i) => [node, PROP.opacity, prop(i, PROP.opacity)]);
       const clipped = world.render().slice();
+      const savedContentClips = contentClips.flatMap((node, i) => [node, PROP.translateX, writes.get(node)!.get(PROP.translateX)!,
+        contentPlanes[i], PROP.translateX, writes.get(contentPlanes[i])!.get(PROP.translateX)!]);
+      host!.setPropBatch(new Float64Array(contentClips.flatMap((node, i) =>
+        [node, PROP.translateX, 0, contentPlanes[i], PROP.translateX, 0])).buffer);
+      expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
+      host!.setPropBatch(new Float64Array(savedContentClips).buffer);
       host!.setPropBatch(new Float64Array(nodes.flatMap(node => [node, PROP.opacity, 1])).buffer);
       expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
       host!.setPropBatch(new Float64Array(saved).buffer);
-      const clips = nodes.map((_, i) => named.get(`TouchCardClip${i}`)!);
-      const savedClips = clips.flatMap(node => [node, PROP.width, writes.get(node)!.get(PROP.width)!]);
+      const savedClips = clips.flatMap((node, i) => [node, PROP.translateX, writes.get(node)!.get(PROP.translateX)!,
+        nodes[i], PROP.translateX, writes.get(nodes[i])!.get(PROP.translateX)!]);
+      // The translated scissor must match the old width-based clip exactly.
+      const oldClips = clips.flatMap((node, i) => [node, PROP.translateX, 0,
+        node, PROP.width, 320 + writes.get(node)!.get(PROP.translateX)!, nodes[i], PROP.translateX, prop(i, PROP.translateX)]);
+      host!.setPropBatch(new Float64Array(oldClips).buffer);
+      expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
       host!.setPropBatch(new Float64Array(clips.flatMap(node => [node, PROP.width, 320])).buffer);
       const reference = world.render();
       // Clipping a rotated triangle can quantize its edge one pixel away.
@@ -81,6 +96,12 @@ describe("Touch shell through the mounted PocketJS guest", () => {
       expect(changed).toBeLessThanOrEqual(320 * 480 * 0.001);
       host!.setPropBatch(new Float64Array(savedClips).buffer);
     }
+    // Cold launch paints Home while keeping every mockup mounted.
+    expect(nodes.every((_, i) => prop(i, PROP.opacity) === 0)).toBe(true);
+    expect(actions).toHaveLength(0);
+    const bootHome = Bun.hash(world.render());
+    idle(); expect(Bun.hash(world.render())).toBe(bootHome);
+    tap(APPS[0].x + 28, APPS[0].y + 28);
     expect(prop(0, PROP.scaleX)).toBe(1);
     const beforeScroll = Bun.hash(world.render());
     glide(155, 388, 155, 200);

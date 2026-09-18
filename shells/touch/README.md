@@ -5,7 +5,7 @@ Nokia E7 (360 × 640 portrait or 640 × 360 landscape).
 Sixteen retained mock apps share two Home pages: Today, Music, Places, Weather,
 Notes, Photos, Mail, Calendar, Clock, Safari, Files, Settings, Camera, Health,
 Books and Calculator. They contain sample content and do not connect to external
-services.
+services. **Cold launch opens the first Home page**, with the mock apps retained in the background.
 
 <img src="media/home.png" width="240" alt="Four-column Home grid and fixed four-app dock" /> <img src="media/home-second.png" width="240" alt="Second Home page with four apps and two information cards" /> <img src="media/quick-switch.png" width="240" alt="Equal-size live windows during a bottom-edge quick switch" />
 
@@ -111,6 +111,12 @@ bun run touch status --require-action
 bun run touch capture
 ```
 
+With `bun run touch tunnel` active, `bun shells/touch/test/device.ts` injects
+UIKit contacts and checks window actions on the device. Pass `--motion-only`
+to repeat the Photos/Notes/Music deck motion without screenshots during the
+sampling windows. Per-journey `postCaptureFps` includes screenshot overhead;
+use `quickFps`, `stackFps` and `homeFps` for continuous-motion cadence.
+
 The shell owns its app, sixteen mockups, gesture model, assets and tests.
 The Omarchy companion remains in `shells/ipod`. The shared runtime, renderer,
 UIKit host and installer come from the pinned `vendor/pocketjs` submodule.
@@ -134,8 +140,9 @@ The same navigation model drives both devices. Window dimensions, icon hit
 targets, minimizing destinations, deck positions and content extents use the
 current viewport. Rotating cancels the previous contact before its release can
 commit an action, then retains open-window order, selected app and Home page.
-The E7 host presents at **30 Hz with two 60 Hz core ticks per frame**, and sends
-the wide touch format so coordinates beyond 511 reach the guest.
+The Shell package requests a **60 Hz host timer** and sends the wide touch
+format so coordinates beyond 511 reach the guest. The generic E7 host default
+remains 30 Hz; the Shell build passes `--frame-rate 60`.
 
 With the phone connected in Nokia Suite mode and CODA available:
 
@@ -169,13 +176,19 @@ The painter retains all app nodes and skips unchanged property writes. Settled
 springs stop before evaluating their exponential. Neither optimization changes
 contact positions, spring targets, or animation timing.
 
-The native profiling workflow requires a PocketJS build with `--perf-trace`
-support; the current submodule pin predates that option. Build against the
-upstream profiling checkout, with this shell as its `--project-root`, and
-install the resulting SIS before running the commands below. Use matching
-viewport dimensions and keep the phone in that orientation during the run.
+Build the diagnostic SIS with the pinned PocketJS toolchain and install it
+before profiling:
+
+```sh
+bun vendor/pocketjs/tools/symbian.ts build app --manifest shells/touch/pocket.json \
+  --project-root shells/touch --outdir .pocket-build/validation/touch/e7-performance \
+  --sis-version 0.3.68 --frame-rate 60 --perf-trace
+```
+
+Use matching viewport dimensions and keep the phone in that orientation during the run.
 Replay builds fix orientation to the manifest's initial viewport. The analyzer
-rejects inactive-window samples and mismatched viewport dimensions; pass the
+rejects inactive-window samples, mismatched viewport dimensions, missing replay,
+non-finite timing values and incomplete or unordered frame rows; pass the
 same width and height to `make` and `analyze` for landscape workloads.
 
 ```sh
@@ -189,7 +202,12 @@ bun shells/touch/scripts/e7-perf.ts analyze .pocket-build/validation/touch/e7-pe
 ```
 
 The 30-second virtual-clock replay includes Home paging, app-to-Home minimization and the
-switcher. The summary excludes settled pauses from paging and minimization.
+switcher. It reports the first app-to-Home gesture apart from repeated gestures,
+so first-use resource uploads remain visible. The summary excludes settled pauses
+from paging and minimization. Pass `all-apps` after the width and height to both
+`make` and `analyze` to open and minimize every mock app across both Home pages.
+`deck-dismiss` covers browsing the deck and returning Home. The analyzer rejects
+touch counts that differ from the selected replay, including extra real contacts.
 Input advances with the framework's frame clock, preserving the same contact
 sequence when a frame is slow. FPS and stage durations use wall time; the
 device script allows 90 seconds for boot, warmup, collection and the screenshot.
@@ -198,6 +216,13 @@ GLES submission and presentation. Presentation includes GLES submission;
 these measurements do not separate GPU execution or display scanout. Replay
 starts at the native packed-input boundary, below the guest input dispatcher.
 Physical touch delivery still needs a manual check.
+`src/window-painter.ts` owns named batch bindings and retained paint values;
+`Navigation` owns gesture state, poses and occlusion bounds. The painter
+translates fixed-size clipping containers, avoiding layout
+work when an occluding edge moves. It clips app content behind opaque windows
+while retaining each background's rounded fringe. The pinned renderer retains
+scaled glyph sampling under the moving scissor. Window poses remain live;
+clipping does not change navigation state or animation targets.
 The diagnostic runtime keeps the device awake for five minutes and saves the
 optional screenshot after measurement. Normal builds keep device sleep enabled.
 

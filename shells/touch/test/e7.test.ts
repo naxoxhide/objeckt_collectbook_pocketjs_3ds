@@ -20,7 +20,6 @@ describe('Nokia E7 native viewport', () => {
   for (const [width, height] of [[360, 640], [640, 360]]) {
     test(`${width}x${height}: both Home pages, edge navigation, recency and dismissal at 30 Hz`, () => {
       const n = new Navigation(width, height), cx = width / 2, bar = height - 14;
-      swipe(n, [cx, bar], [cx, bar - 41]);
       expect(n.destination).toBe('home');
       for (let page = 0; page < 2; page++) {
         if (page) swipe(n, [width - 40, 210], [40, 210]);
@@ -79,10 +78,12 @@ describe('Nokia E7 native viewport', () => {
       }
       idle();
       const nodes: number[] = [];
-      const collect = (node: any, out: number[]) => { if (node.n?.startsWith('TouchWindow')) out.push(node.i); node.k?.forEach((n: any) => collect(n, out)); };
+      const clips: number[] = [];
+      const collect = (node: any, out: number[]) => { if (node.n?.startsWith('TouchWindow')) out.push(node.i); if (node.n?.startsWith('TouchCardClip')) clips.push(node.i); node.k?.forEach((n: any) => collect(n, out)); };
       collect(world.getTree(), nodes); expect(nodes).toHaveLength(16);
       const l = shellLayout(width, height), cx = width / 2, bar = height - 14;
-      glide(cx, bar, cx, bar - 41);
+      expect(nodes.every(node => writes.get(node)!.get(PROP.opacity) === 0)).toBe(true);
+      expect(actions).toHaveLength(0);
       // Re-enter from Home before Photos' icon minimization has faded out.
       // Check the mounted painter, not only the navigation model's targets.
       const photoIcon = l.icon(5), photo = nodes[5];
@@ -92,11 +93,11 @@ describe('Nokia E7 native viewport', () => {
       for (let i = 0; i < 9; i++) frame();
       frame(cx, bar);
       expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
-      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeLessThanOrEqual(0);
+      expect((writes.get(photo)!.get(PROP.translateX)! + writes.get(clips[5])!.get(PROP.translateX)!) + width * 0.64).toBeLessThanOrEqual(0);
       frame(cx, bar - 90);
       expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
-      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeGreaterThan(0);
-      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeLessThan(48);
+      expect((writes.get(photo)!.get(PROP.translateX)! + writes.get(clips[5])!.get(PROP.translateX)!) + width * 0.64).toBeGreaterThan(0);
+      expect((writes.get(photo)!.get(PROP.translateX)! + writes.get(clips[5])!.get(PROP.translateX)!) + width * 0.64).toBeLessThan(48);
       frame(); idle();
       expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
       tap(cx, height / 2); // Reopen the centered Photos card, then return Home.
@@ -132,7 +133,7 @@ describe('Nokia E7 native viewport', () => {
   test('orientation change cancels an old contact without launching or closing a window', () => {
     for (const destination of ['home', 'app', 'switcher'] as const) {
       const n = new Navigation(360, 640);
-      if (destination === 'home') swipe(n, [180, 626], [180, 585]);
+      if (destination === 'app') { n.open(0); settle(n); }
       if (destination === 'switcher') swipe(n, [180, 626], [180, 585], 8);
       const order = [...n.opened], selected = n.selected;
       n.down(contact(180, 626)); n.move(contact(100, 570), 1 / 30);
@@ -160,5 +161,69 @@ for (const hz of [30, 60]) {
     writes = 0;
     for (let i = 0; i < hz; i++) { world.frame(0); for (let t = 0; t < 60 / hz; t++) world.tick(); }
     expect(writes).toBe(0);
+  });
+}
+
+for (const [width, height] of [[360, 640], [640, 360]]) {
+  test(`${width}x${height}: content occlusion retains visible ink while paging and dismissing`, async () => {
+    const translations = new Map<number, number>();
+    let direct!: (buffer: ArrayBuffer) => void;
+    const world = await bootWorld('pocketshell-touch-e7', 60, undefined, ops => {
+      direct = ops.setPropBatch as typeof direct;
+      ops.setPropBatch = (buffer: ArrayBuffer) => {
+        const values = new Float64Array(buffer);
+        for (let i = 0; i < values.length; i += 3) if (values[i + 1] === PROP.translateX) translations.set(values[i], values[i + 2]);
+        direct(buffer);
+      };
+    }, { width, height, rasterDensity: 1 });
+    const clips: number[] = [], planes: number[] = [];
+    function visit(n: any) {
+      if (n.n?.startsWith('TouchContentClip')) clips.push(n.i);
+      if (n.n?.startsWith('TouchContentPlane')) planes.push(n.i);
+      n.k?.forEach(visit);
+    }
+    visit(world.getTree());
+    expect(clips).toHaveLength(APPS.length);
+    let samples = 0, clippedSamples = 0, frames = 0;
+    function frame(x?: number, y?: number) {
+      world.frame(0, undefined, x === undefined ? [] : [__packTouchWide(0, Math.round(x), Math.round(y!))]);
+      world.tick();
+      if (++frames % 8) return;
+      const ids = [...clips, ...planes];
+      const saved = new Float64Array(ids.flatMap(id => [id, PROP.translateX, translations.get(id) ?? 0]));
+      if (clips.some(id => translations.get(id))) clippedSamples++;
+      const clipped = world.render().slice();
+      direct(new Float64Array(ids.flatMap(id => [id, PROP.translateX, 0])).buffer);
+      const reference = world.render();
+      let changed = 0, interiorChanges = 0;
+      for (let p = 0; p < reference.length; p += 4) {
+        if (reference.subarray(p, p + 4).every((v, c) => v === clipped[p + c])) continue;
+        changed++;
+        const x = p / 4 % width, y = Math.floor(p / 4 / width);
+        const low = [255, 255, 255, 255], high = [0, 0, 0, 0];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (x + dx < 0 || x + dx >= width || y + dy < 0 || y + dy >= height) continue;
+          const q = ((y + dy) * width + x + dx) * 4;
+          for (let c = 0; c < 4; c++) { low[c] = Math.min(low[c], reference[q + c]); high[c] = Math.max(high[c], reference[q + c]); }
+        }
+        if (Math.max(...high.map((v, c) => v - low[c])) <= 1) interiorChanges++;
+      }
+      // Clipping a rotated mockup quad may quantize its edge by one pixel;
+      // missing text or a newly exposed region is not an allowed difference.
+      expect(interiorChanges).toBe(0);
+      expect(changed).toBeLessThanOrEqual(width * height * 0.001);
+      direct(saved.buffer);
+      samples++;
+    }
+    function glide(x0: number, y0: number, x1: number, y1: number) {
+      for (let i = 0; i <= 18; i++) frame(x0 + (x1 - x0) * i / 18, y0 + (y1 - y0) * i / 18);
+      frame(); for (let i = 0; i < 60; i++) frame();
+    }
+    for (let i = 0; i < 120; i++) frame();
+    glide(width / 2, height - 14, width / 2, height - 100);
+    for (let i = 0; i < 5; i++) glide(width / 2, height / 2, width / 2 + 90, height / 2);
+    glide(width / 2, height / 2, width / 2, 20);
+    expect(samples).toBeGreaterThan(50);
+    expect(clippedSamples).toBeGreaterThan(20);
   });
 }

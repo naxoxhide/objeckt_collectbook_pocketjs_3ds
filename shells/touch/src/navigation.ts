@@ -2,7 +2,7 @@
 // Destinations choose spring targets. They never replace a scene or reset its
 // presentation. A down edge catches the displayed pose, including mid-spring.
 import { APPS, HOME_PAGES, ICON_SIZE } from "./catalog.ts";
-import { shellLayout, type ShellLayout } from "./layout.ts";
+import { shellLayout, WINDOW_RADIUS, type ShellLayout } from "./layout.ts";
 
 export const WIDTH = 320;
 export const HEIGHT = 480;
@@ -22,6 +22,8 @@ export type DragKind = "navigation" | "reveal" | "pager" | "content" | "detail" 
 export interface Contact { id: number; x: number; y: number; vx: number; vy: number }
 export interface Axis { value: number; velocity: number; target: number }
 export interface Card { x: Axis; y: Axis; scale: Axis; visibility: Axis }
+export interface PaintBounds { opacity: number; right: number; contentRight: number }
+interface Occluder { layer: number; left: number; top: number; right: number; bottom: number; inset: number }
 const axis = (value: number): Axis => ({ value, velocity: 0, target: value });
 export const clamp = (v: number, lo = 0, hi = 1): number => Math.max(lo, Math.min(hi, v));
 export function smooth(a: number, b: number, v: number): number {
@@ -30,11 +32,11 @@ export function smooth(a: number, b: number, v: number): number {
 }
 
 /** Exact critically damped spring; release keeps velocity in px/s. */
-export function stepSpring(a: Axis, dt: number, frequency = 18): void {
+export function stepSpring(a: Axis, dt: number, frequency = 18, decay?: number): void {
   if (a.value === a.target && a.velocity === 0) return;
   const d = a.value - a.target;
   const b = a.velocity + frequency * d;
-  const e = Math.exp(-frequency * dt);
+  const e = decay ?? Math.exp(-frequency * dt);
   a.value = a.target + (d + b * dt) * e;
   a.velocity = (a.velocity - frequency * b * dt) * e;
   if (Math.abs(a.value - a.target) < 0.0001 && Math.abs(a.velocity) < 0.001) {
@@ -72,7 +74,16 @@ interface Drag {
 
 export class Navigation {
   layout: ShellLayout = shellLayout();
-  constructor(width = WIDTH, height = HEIGHT) { this.layout = shellLayout(width, height); }
+  constructor(width = WIDTH, height = HEIGHT) {
+    this.layout = shellLayout(width, height);
+    // The first rendered frame is Home, with no startup minimization.
+    this.targets("home");
+    for (const a of [this.scene, this.overview, this.deck, this.homeCover,
+      ...this.cards.flatMap(c => [c.x, c.y, c.scale, c.visibility])]) {
+      a.value = a.target;
+      a.velocity = 0;
+    }
+  }
   private stackPose(relative: number) {
     return stackPose(relative, this.layout.width, this.layout.height, this.layout.overviewY);
   }
@@ -123,51 +134,65 @@ export class Navigation {
     return index === this.foreground ? COUNT * 2 + 4 : Math.max(0, this.opened.indexOf(index)) * 2 + 2;
   }
 
-  paintVisibility(index: number): number {
-    const card = this.cards[index], opacity = clamp(card.visibility.value);
-    if (!opacity) return 0;
-    const left = Math.max(0, card.x.value), top = Math.max(0, card.y.value);
-    const right = Math.min(this.layout.width, card.x.value + this.layout.width * card.scale.value);
-    const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
-    if (right <= left || bottom <= top) return opacity;
-    const layer = this.layer(index);
+  private readonly occluderPool: Occluder[] = APPS.map(() => ({ layer: 0, left: 0, top: 0, right: 0, bottom: 0, inset: 0 }));
+  private readonly occluders: Occluder[] = [];
+
+  // The painter resolves the opaque neighbors once, then reuses those bounds
+  // for every window. Offscreen windows cannot occlude a viewport pixel.
+  paintOccluders(): readonly Occluder[] {
+    const { width, height } = this.layout;
+    let count = 0;
     for (let rank = 0; rank < this.opened.length; rank++) {
-      const i = this.opened[rank];
-      const other = this.cards[i];
-      if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
-      const x = other.x.value, y = other.y.value;
-      const r = x + this.layout.width * other.scale.value, b = y + this.layout.height * other.scale.value;
-      // Two rectangles inside the rounded card, inset one point for raster
-      // edges. Only fully covered windows skip painting; content stays mounted.
-      const inset = 28 * other.scale.value + 1;
-      if (left >= x + 1 && right <= r - 1 && top >= y + 1 && bottom <= b - 1 &&
-          ((left >= x + inset && right <= r - inset) || (top >= y + inset && bottom <= b - inset))) return 0;
+      const i = this.opened[rank], card = this.cards[i];
+      if (card.visibility.value < 1) continue;
+      const x = card.x.value, y = card.y.value, scale = card.scale.value;
+      const right = x + width * scale, bottom = y + height * scale;
+      if (right <= 0 || x >= width || bottom <= 0 || y >= height) continue;
+      const bounds = this.occluderPool[count];
+      bounds.layer = i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2;
+      bounds.left = x; bounds.top = y; bounds.right = right; bounds.bottom = bottom;
+      bounds.inset = WINDOW_RADIUS * scale + 1;
+      this.occluders[count++] = bounds;
     }
-    return opacity;
+    this.occluders.length = count;
+    return this.occluders;
   }
 
-  paintRight(index: number): number {
-    const card = this.cards[index], width = this.layout.width;
+  // Resolve full and partial occlusion in one walk over the same opaque
+  // neighbors. The painter uses both results for each retained window.
+  paintBounds(index: number, occluders = this.paintOccluders()): PaintBounds {
+    const card = this.cards[index], width = this.layout.width, height = this.layout.height;
+    const opacity = clamp(card.visibility.value);
+    if (!opacity) return { opacity: 0, right: width, contentRight: width };
+    const left = Math.max(0, card.x.value), top = Math.max(0, card.y.value);
     const right = Math.min(width, card.x.value + width * card.scale.value);
-    const top = Math.max(0, card.y.value);
-    const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
-    if (right <= 0 || card.x.value >= width || bottom <= top) return width;
-    let edge = width;
+    const bottom = Math.min(height, card.y.value + height * card.scale.value);
+    if (right <= left || bottom <= top) return { opacity, right: width, contentRight: width };
     const layer = this.layer(index);
-    for (let rank = 0; rank < this.opened.length; rank++) {
-      const i = this.opened[rank];
-      const other = this.cards[i];
-      if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
-      const x = other.x.value, y = other.y.value;
-      const r = x + width * other.scale.value, b = y + this.layout.height * other.scale.value;
-      const inset = 28 * other.scale.value + 1;
-      // The next card covers this window's right side. Keep the rounded
-      // corner fringe and a raster guard; clip only inside its opaque body.
+    let edge = width, contentEdge = width;
+    // Window backgrounds retain their rounded fringe. App ink is inside
+    // these vertical margins, so an equal-height neighbor can cover its
+    // content even when the outer antialiased edges remain visible.
+    const contentTop = card.y.value + 32 * card.scale.value;
+    const contentBottom = card.y.value + (height - 16) * card.scale.value;
+    for (let rank = 0; rank < occluders.length; rank++) {
+      const other = occluders[rank];
+      if (other.layer <= layer) continue;
+      const x = other.left, y = other.top, r = other.right, b = other.bottom, inset = other.inset;
+      if (right <= r - 1 && contentTop >= y + 1 && contentBottom <= b - 1) {
+        const insideContentY = contentTop >= y + inset && contentBottom <= b - inset;
+        contentEdge = Math.min(contentEdge, x + (insideContentY ? 1 : inset));
+      }
+      // Keep the rounded corner fringe and a one-pixel raster guard.
       if (right <= r - 1 && top >= y + 1 && bottom <= b - 1) {
-        edge = Math.min(edge, x + (top >= y + inset && bottom <= b - inset ? 1 : inset));
+        const insideY = top >= y + inset && bottom <= b - inset;
+        if (left >= x + 1 && ((left >= x + inset && right <= r - inset) || insideY)) {
+          return { opacity: 0, right: width, contentRight: width };
+        }
+        edge = Math.min(edge, x + (insideY ? 1 : inset));
       }
     }
-    return clamp(Math.ceil(edge), 0, width);
+    return { opacity, right: clamp(Math.ceil(edge), 0, width), contentRight: clamp(Math.ceil(contentEdge), 0, width) };
   }
 
   private targets(destination: Destination, keepDeck = false): void {
@@ -218,14 +243,20 @@ export class Navigation {
   }
 
   private paintStack(dt: number, settleOffsets: boolean): void {
-    this.opened.forEach(i => {
-      const card = this.cards[i], pose = this.stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
-      for (const key of ["x", "y", "scale"] as const) {
-        if (settleOffsets) stepSpring(offset[key], dt);
-        const derivative = key === "x" ? pose.dx : key === "y" ? pose.dy : pose.ds;
-        card[key].value = pose[key] + offset[key].value;
-        card[key].velocity = -derivative * this.deck.velocity + (settleOffsets ? offset[key].velocity : 0);
+    const decay = settleOffsets ? Math.exp(-18 * dt) : 1;
+    this.opened.forEach((i, rank) => {
+      const card = this.cards[i], pose = this.stackPose(rank - this.deck.value), offset = this.offsets[i];
+      if (settleOffsets) {
+        stepSpring(offset.x, dt, 18, decay);
+        stepSpring(offset.y, dt, 18, decay);
+        stepSpring(offset.scale, dt, 18, decay);
       }
+      card.x.value = pose.x + offset.x.value;
+      card.y.value = pose.y + offset.y.value;
+      card.scale.value = pose.scale + offset.scale.value;
+      card.x.velocity = -pose.dx * this.deck.velocity + (settleOffsets ? offset.x.velocity : 0);
+      card.y.velocity = -pose.dy * this.deck.velocity + (settleOffsets ? offset.y.velocity : 0);
+      card.scale.velocity = -pose.ds * this.deck.velocity + (settleOffsets ? offset.scale.velocity : 0);
     });
   }
 

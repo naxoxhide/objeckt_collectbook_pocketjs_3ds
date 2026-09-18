@@ -5,6 +5,12 @@ import { Navigation, stepSpring, OVERVIEW_SCALE, ICON_X, ICON_Y, COUNT, type Con
 const contact = (x: number, y: number, vx = 0, vy = 0, id = 0): Contact => ({ id, x, y, vx, vy });
 const pose = (n: Navigation) => n.cards.map(c => [c.x.value, c.y.value, c.scale.value]);
 const settle = (n: Navigation, hz = 60) => { for (let i = 0; i < hz * 2; i++) n.step(1 / hz); };
+// Gesture fixtures that begin inside Today enter it through the public API.
+function appNavigation(width = 320, height = 480) {
+  const n = new Navigation(width, height);
+  n.open(0); settle(n);
+  return n;
+}
 function lift(n: Navigation, pause = 0) {
   n.down(contact(160, 466));
   for (let i = 1; i <= 18; i++) n.move(contact(160, 466 - i * 8, 0, -480), 1 / 60);
@@ -14,7 +20,7 @@ function lift(n: Navigation, pause = 0) {
 
 // Three-window fixtures exercise the same model with a subset of the catalog.
 function navigation() {
-  const n = new Navigation();
+  const n = appNavigation();
   n.opened.splice(0, n.opened.length, 0, 1, 2);
   return n;
 }
@@ -30,7 +36,7 @@ function middleDeck() {
 describe("Touch shell continuous navigation", () => {
   test("dismissing a browsed deck preserves occlusion without sweeping in offscreen windows", () => {
     for (const [width, height] of [[320, 480], [360, 640], [640, 360]]) for (const hz of [30, 60]) {
-      const n = new Navigation(width, height), order = [...n.opened];
+      const n = appNavigation(width, height), order = [...n.opened];
       n.down(contact(width / 2, height - 14));
       n.move(contact(width / 2, height - 114), 1 / hz);
       n.up(contact(width / 2, height - 114)); settle(n, hz);
@@ -97,24 +103,24 @@ describe("Touch shell continuous navigation", () => {
   });
 
   test("opaque stacked cards skip fully covered windows but never a visible strip or a translucent cover", () => {
-    const n = new Navigation(); lift(n, 16); settle(n);
+    const n = appNavigation(); lift(n, 16); settle(n);
     expect(n.opened.map(i => n.cards[i].visibility.value)).toEqual(Array(COUNT).fill(1));
-    expect(n.cards.slice(0, 6).map((_, i) => n.paintVisibility(i))).toEqual([1, 1, 0, 0, 0, 0]);
-    expect(n.paintRight(1)).toBeLessThan(100);
+    expect(n.cards.slice(0, 6).map((_, i) => n.paintBounds(i).opacity)).toEqual([1, 1, 0, 0, 0, 0]);
+    expect(n.paintBounds(1).right).toBeLessThan(100);
     n.cards[0].visibility.value = 0.5;
-    expect(n.paintRight(1)).toBe(320); // A translucent card cannot hide content.
+    expect(n.paintBounds(1).right).toBe(320); // A translucent card cannot hide content.
     n.cards[0].visibility.value = 1;
     n.cards[0].y.value += 100;
-    expect(n.paintRight(1)).toBe(320); // Dismissal exposes the top of its neighbor.
+    expect(n.paintBounds(1).right).toBe(320); // Dismissal exposes the top of its neighbor.
     n.cards[0].y.value -= 100;
     n.cards[1].visibility.value = 0.5;
-    expect(n.paintVisibility(2)).toBe(1);
+    expect(n.paintBounds(2).opacity).toBe(1);
     n.cards[1].visibility.value = 1;
     n.down(contact(160, 250)); n.move(contact(250, 250), 1 / 60);
-    expect(n.paintVisibility(2)).toBe(1); // Paging exposes the next older strip.
+    expect(n.paintBounds(2).opacity).toBe(1); // Paging exposes the next older strip.
   });
   test("desktop icons open distinct retained windows and move the chosen app to the newest end", () => {
-    const n = new Navigation();
+    const n = appNavigation();
     expect(n.cards.length).toBe(COUNT);
     expect(COUNT).toBe(16);
     for (const i of [3, 4, 5, 0, 2, 1, 0]) {
@@ -145,7 +151,7 @@ describe("Touch shell continuous navigation", () => {
   });
 
   test("bottom quick switching exposes an equal-size neighbor before release and only translates while settling", () => {
-    const n = new Navigation();
+    const n = appNavigation();
     n.down(contact(40, 466));
     for (let x = 55; x <= 220; x += 15) {
       n.move(contact(x, 466), 1 / 60); n.step(1 / 60);
@@ -181,7 +187,7 @@ describe("Touch shell continuous navigation", () => {
 
   test("a quick switch reverses or cancels without changing recency, and its spring can be caught", () => {
     for (const cancel of [false, true]) {
-      const n = new Navigation(), order = [...n.opened];
+      const n = appNavigation(), order = [...n.opened];
       n.down(contact(40, 466)); n.move(contact(210, 466), 1 / 60);
       if (!cancel) n.move(contact(48, 466), 1 / 60);
       n.up(contact(cancel ? 210 : 48, 466), cancel); settle(n);
@@ -189,7 +195,7 @@ describe("Touch shell continuous navigation", () => {
       expect(n.opened).toEqual(order);
       expect(n.cards[0].x.value).toBe(0);
     }
-    const n = new Navigation();
+    const n = appNavigation();
     n.down(contact(40, 466)); n.move(contact(220, 466), 1 / 60); n.up(contact(220, 466));
     n.step(1 / 60);
     const caught = pose(n);
@@ -431,7 +437,7 @@ describe("Touch shell continuous navigation", () => {
   test("a fresh Home reveal enters from the left even while the last app is minimizing", () => {
     for (const [width, height] of [[320, 480], [360, 640], [640, 360]]) {
       for (const hz of [30, 60]) for (const index of [1, 5, 12]) for (const delay of [0, 0.1, 0.3, 0.5, 2]) {
-        const n = new Navigation(width, height), cx = width / 2, bar = height - 14;
+        const n = appNavigation(width, height), cx = width / 2, bar = height - 14;
         n.open(index); settle(n, hz);
         n.down(contact(cx, bar));
         for (let frame = 1; frame <= hz / 2; frame++) {

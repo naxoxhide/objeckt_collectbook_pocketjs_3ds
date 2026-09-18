@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { createSignal, onMount } from "solid-js";
+import { createMemo, createSignal, onMount } from "solid-js";
 import { View, Text, Image, type NodeMirror } from "@pocketjs/framework/components";
-import { createJumpBatch, jump as applyJump, type JumpBatch } from "@pocketjs/framework/animation";
+import { jump as applyJump } from "@pocketjs/framework/animation";
 import { createGesture, type GestureContact } from "@pocketjs/framework/gesture";
 import { createScroller } from "@pocketjs/framework/kinetics";
 import { onFrame } from "@pocketjs/framework/lifecycle";
@@ -11,6 +11,7 @@ import { Navigation, clamp, smooth } from "./navigation.ts";
 import { APPS, HOME_PAGES } from "./catalog.ts";
 import { AppMockup } from "./mockups.tsx";
 import { Icon } from "./icons.tsx";
+import { createWindowPainter } from "./window-painter.ts";
 
 const NAMES = APPS.map(app => app.name);
 const COLORS = APPS.map(app => app.color);
@@ -21,17 +22,19 @@ export default function TouchShell() {
   const nav = new Navigation(viewport?.w ?? 320, viewport?.h ?? 480);
   const [layout, setLayout] = createSignal(nav.layout);
   const [stack, setStack] = createSignal("");
-  const layer = (index: number) => { stack(); return nav.layer(index); };
-  const homeLayer = () => { stack(); return nav.coveringHome ? CHROME_LAYER - 1 : 0; };
+  // Only reapply a window's styles when its actual paint rank changes.
+  const layers = APPS.map((_, index) => createMemo(() => { stack(); return nav.layer(index); }));
+  const layer = (index: number) => layers[index]();
+  const homeLayer = createMemo(() => { stack(); return nav.coveringHome ? CHROME_LAYER - 1 : 0; });
   const windows: NodeMirror[] = [], clips: NodeMirror[] = [], contents: NodeMirror[] = [], labels: NodeMirror[] = [];
+  const contentClips: NodeMirror[] = [], contentPlanes: NodeMirror[] = [];
   const pages: NodeMirror[] = [], dots: NodeMirror[] = [];
   let wallpaper!: NodeMirror, homeCover!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
   let detail!: NodeMirror, detailUnder!: NodeMirror, pill!: NodeMirror;
-  let batch: JumpBatch | undefined;
+  let windowPainter: ReturnType<typeof createWindowPainter> | undefined;
   // These properties are owned by this painter, with no native animations.
   // Keep mounted content, but avoid JS/native calls for identical poses.
   const painted = new WeakMap<NodeMirror, Record<string, number>>();
-  const windowPose = new Float64Array(APPS.length * 6).fill(NaN);
   function jump(node: NodeMirror, prop: Parameters<typeof applyJump>[1], value: number) {
     let previous = painted.get(node);
     if (!previous) { previous = {}; painted.set(node, previous); }
@@ -79,14 +82,15 @@ export default function TouchShell() {
   });
 
   onMount(() => {
-    batch = createJumpBatch(windows.flatMap(node => [
-      [node, "translateX"], [node, "translateY"], [node, "scaleX"], [node, "scaleY"], [node, "radius"], [node, "opacity"],
-    ] as const));
+    windowPainter = createWindowPainter(windows.map((window, i) => ({
+      window, clip: clips[i], label: labels[i], content: contents[i],
+      contentClip: contentClips[i], contentPlane: contentPlanes[i],
+    })));
     paint();
   });
 
   function paint() {
-    if (!batch) return;
+    if (!windowPainter) return;
     setStack(`${nav.foreground}/${nav.opened.join(",")}/${nav.coveringHome}`);
     const active = nav.cards[nav.selected];
     const scene = nav.scene.value;
@@ -118,28 +122,11 @@ export default function TouchShell() {
     jump(pill, "bgColor", (0xff000000 | (Math.round(255 - 184 * ink) << 16) |
       (Math.round(255 - 206 * ink) << 8) | Math.round(255 - 217 * ink)) >>> 0);
     jump(pill, "scaleX", 1 - (nav.drag?.kind === "navigation" ? 0.12 * (1 - expansion) : 0));
-    let windowsChanged = false;
+    const occluders = nav.paintOccluders();
     for (let i = 0; i < windows.length; i++) {
-      const c = nav.cards[i], b = i * 6;
-      const visibility = nav.paintVisibility(i), offset = scrollers[i].offset();
-      jump(clips[i], "width", visibility ? nav.paintRight(i) : layout().width);
-      if (windowPose[b] === c.x.value && windowPose[b + 1] === c.y.value &&
-          windowPose[b + 2] === c.scale.value && windowPose[b + 3] === visibility &&
-          windowPose[b + 4] === c.visibility.value && windowPose[b + 5] === offset) continue;
-      windowPose[b] = c.x.value; windowPose[b + 1] = c.y.value;
-      windowPose[b + 2] = c.scale.value; windowPose[b + 3] = visibility;
-      windowPose[b + 4] = c.visibility.value; windowPose[b + 5] = offset;
-      windowsChanged = true;
-      batch.set(b, c.x.value); batch.set(b + 1, c.y.value);
-      batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
-      batch.set(b + 4, 28 * (1 - smooth(0.72, 1, c.scale.value)));
-      batch.set(b + 5, visibility);
-      jump(contents[i], "translateY", -offset);
-      jump(labels[i], "translateX", c.x.value);
-      jump(labels[i], "translateY", c.y.value - 29);
-      jump(labels[i], "opacity", Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
+      windowPainter.paint(i, nav.cards[i], nav.paintBounds(i, occluders), layout().width, scrollers[i].offset());
     }
-    if (windowsChanged) batch.commit();
+    windowPainter.commit();
     jump(detail, "translateX", layout().width * (1 - nav.detail.value));
     jump(detail, "opacity", smooth(0, 0.01, nav.detail.value));
     jump(detailUnder, "translateX", -78 * nav.detail.value);
@@ -199,6 +186,8 @@ export default function TouchShell() {
         style={{ width: layout().width, height: layout().height, zIndex: layer(i) }}>
         <View nodeRef={n => windows[i] = n!} debugName={`TouchWindow${i}`} class="absolute left-0 top-0 overflow-hidden"
           style={{ width: layout().width, height: layout().height, originX: -0.5, originY: -0.5, bgColor: APPS[i].background }}>
+          <View nodeRef={n => contentClips[i] = n!} debugName={`TouchContentClip${i}`} class="absolute inset-0 overflow-hidden">
+          <View nodeRef={n => contentPlanes[i] = n!} debugName={`TouchContentPlane${i}`} class="absolute inset-0">
           <View nodeRef={n => { if (i === 0) detailUnder = n!; }} class="absolute inset-0">
             <Text class="absolute left-[24] top-[47] text-xs font-bold tracking-wide" style={{ textColor: COLORS[i] }}>{APPS[i].subtitle}</Text>
             <Text class="absolute left-[22] top-[73] text-4xl font-bold text-[#27334b]">{name}</Text>
@@ -220,6 +209,8 @@ export default function TouchShell() {
             </View>
             <Text class="absolute text-sm text-[#7b8496]" style={{ insetL: layout().landscape ? layout().width - 295 : 25, insetT: layout().landscape ? 270 : 382 }}>Drag from the left edge to go back.</Text>
           </View> : null}
+          </View>
+          </View>
         </View>
       </View>
     </>)}

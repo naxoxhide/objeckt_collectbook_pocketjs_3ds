@@ -85,7 +85,8 @@ async function capture(name: string) {
   return { ...receipt, hash: Bun.hash(raw).toString(16) };
 }
 
-const results: { name: string; actions: number; fps: number }[] = [];
+// Per-journey captures interrupt rendering; only the continuous-motion samples measure cadence.
+const results: { name: string; actions: number; postCaptureFps: number }[] = [];
 async function journey(name: string, points: readonly Point[], action = true, intermediate?: { afterMs: number; name: string }) {
   const before = await status();
   const input = gesture(points);
@@ -98,17 +99,44 @@ async function journey(name: string, points: readonly Point[], action = true, in
     throw new Error(`${name}: expected one completed UIKit contact; missing or concurrent input invalidates this journey`);
   }
   if (action && (after.fields.action_name !== descriptor.actionName || +after.fields.action_value <= +before.fields.action_value)) throw new Error(`${name}: no guest action`);
-  const result = { name, actions: +after.fields.action_value, fps: +after.fields.window_frames * 1e6 / +after.fields.window_us };
+  const result = { name, actions: +after.fields.action_value, postCaptureFps: +after.fields.window_frames * 1e6 / +after.fields.window_us };
   results.push(result); console.log(JSON.stringify(result));
 }
 
-try {
-  // A fresh process makes this named journey reproducible.
-  await remote(`/usr/bin/killall PocketShellTouch 2>/dev/null || true`);
-  await remote("/bin/su mobile -c '/usr/bin/uiopen pocketjs-shell-touch://launch'");
-  await Bun.sleep(1600);
-  const restarted = await capture("00-app");
-  if (restarted.fields.touch_sequences !== "0") throw new Error("Fresh process received input before validation");
+let motionContacts = 0;
+async function sampleMotion(name: string, points: readonly Point[], count: number) {
+  // Captures interrupt the native timing window; measure only while one
+  // continuous injected contact is held and each status heartbeat advances.
+  await Bun.sleep(2500);
+  const before = await status();
+  let heartbeat = +before.fields.heartbeat;
+  const moving = gesture(points), samples: number[] = [];
+  try {
+    for (let i = 0; i < count; i++) {
+      await Bun.sleep(1600);
+      const sample = await status(), f = sample.fields;
+      if (f.build_id !== initial.fields.build_id || +f.heartbeat <= heartbeat || f.touch_down !== "1" ||
+          +f.touch_sequences !== +before.fields.touch_sequences + 1 ||
+          +f.completed_touch_sequences !== +before.fields.completed_touch_sequences)
+        throw new Error(`${name}: stale status, changed build or unexpected contact during motion`);
+      heartbeat = +f.heartbeat;
+      await Bun.write(join(output, `${name}-${i}.status`), sample.raw + "\n");
+      samples.push(+f.window_frames * 1e6 / +f.window_us);
+    }
+  } finally { await moving; }
+  motionContacts++;
+  await Bun.sleep(850);
+  const after = await status();
+  if (+after.fields.completed_touch_sequences !== +before.fields.completed_touch_sequences + 1 ||
+      +after.fields.touch_sequences !== +before.fields.touch_sequences + 1 || after.fields.touch_down !== "0")
+    throw new Error(`${name}: motion contact did not complete alone`);
+  return samples;
+}
+
+// Full and focused runs enter the stack with identical app order, scroll
+// offsets and gesture history; an unscrolled neighborhood is a lighter scene.
+async function prepareStack() {
+  await journey("00b-open-today", icon(0));
   await journey("01-scroll", [[160, 389, 80], [160, 214, 350]]);
   await journey("02-detail", [[110, 230, 120]]);
   await journey("03-edge-back", [[4, 238, 80], [221, 238, 420]]);
@@ -133,98 +161,105 @@ try {
   await journey("14-parallax-reversal", [[160, 250, 80], [196, 250, 300], [196, 250, 3500], [160, 250, 300], [160, 250, 150]], true,
     { afterMs: 700, name: "14a-parallax-held" });
   await journey("15-horizontal-ignores-upward-motion", [[160, 250, 80], [185, 252, 160], [190, 145, 250], [190, 145, 150]]);
-  const stackMotion: Point[] = [[160, 250, 80]];
-  for (let i = 0; i < 12; i++) stackMotion.push([235, 250, 320], [90, 250, 320]);
-  stackMotion.push([160, 250, 300], [160, 250, 150]);
-  // Drain the status timing window after the preceding glReadPixels capture.
-  await Bun.sleep(2500);
-  const paging = gesture(stackMotion), stackFps: number[] = [];
-  for (let i = 0; i < 3; i++) {
-    await Bun.sleep(1600);
-    const sample = await status();
-    await Bun.write(join(output, `stack-motion-${i}.status`), sample.raw + "\n");
-    stackFps.push(+sample.fields.window_frames * 1e6 / +sample.fields.window_us);
+}
+
+try {
+  // A fresh process makes this named journey reproducible.
+  await remote(`/usr/bin/killall PocketShellTouch 2>/dev/null || true`);
+  await remote("/bin/su mobile -c '/usr/bin/uiopen pocketjs-shell-touch://launch'");
+  await Bun.sleep(1600);
+  const restarted = await capture("00-home");
+  if (restarted.fields.touch_sequences !== "0") throw new Error("Fresh process received input before validation");
+  await prepareStack();
+  if (process.argv.includes("--motion-only")) {
+    const points: Point[] = [[160, 250, 80]];
+    for (let i = 0; i < 12; i++) points.push([235, 250, 320], [90, 250, 320]);
+    points.push([160, 250, 300], [160, 250, 150]);
+    const samples: number[] = [];
+    for (let round = 0; round < 2; round++) samples.push(...await sampleMotion(`stack-repeat-${round}`, points, 4));
+    await capture("motion-final-stack");
+    await journey("motion-leave-home", [[310, 425, 120]]);
+    const final = await status();
+    if (+final.fields.touch_sequences !== results.length + motionContacts ||
+        +final.fields.completed_touch_sequences !== results.length + motionContacts || final.fields.touch_down !== "0") {
+      throw new Error("Unexpected input during the repeated stack gestures");
+    }
+    await Bun.write(join(output, "results.json"), JSON.stringify({ build: initial.fields.build_id,
+      input: "GraphicsServices injected touch", results, stackFps: samples }, null, 2) + "\n");
+    console.log(`Repeated stack FPS: ${samples.map(n => n.toFixed(2)).join(", ")}`);
+    if (samples.some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Repeated stack rendering fell below 55 FPS");
+  } else {
+    const stackMotion: Point[] = [[160, 250, 80]];
+    for (let i = 0; i < 12; i++) stackMotion.push([235, 250, 320], [90, 250, 320]);
+    stackMotion.push([160, 250, 300], [160, 250, 150]);
+    const stackFps = await sampleMotion("stack-motion", stackMotion, 3);
+    await capture("16-after-stack-motion");
+    await journey("17-open-photos", [[160, 220, 120]]);
+    await journey("18-quick-switch-music", [[40, 466, 80], [220, 466, 450]]);
+    await journey("19-quick-back-photos", [[280, 466, 80], [80, 466, 450]]);
+    const quickMotion: Point[] = [[40, 466, 80]];
+    for (let i = 0; i < 12; i++) quickMotion.push([240, 466, 320], [55, 466, 320]);
+    quickMotion.push([40, 466, 300], [40, 466, 150]);
+    const quickFps = await sampleMotion("quick-motion", quickMotion, 3);
+    await capture("20-after-quick-motion");
+    await journey("21-home", [[160, 466, 80], [160, 425, 300]]);
+    await journey("22-open-music", icon(1));
+    await journey("23-lift-hold-overview", [[160, 466, 80], [160, 425, 300], [160, 425, 280]]);
+    for (const name of ["music", "photos", "notes", "weather", "today", "places", ...APPS.slice(6).map(app => app.name.toLowerCase())]) {
+      await journey(`24-close-${name}`, [[160, 250, 80], [160, 90, 350]]);
+    }
+    await journey("25-empty-to-home", [[160, 220, 120]]);
+    await journey("26-reopen-music", icon(1));
+    await journey("27-only-music-in-deck", [[160, 466, 80], [160, 425, 300], [160, 425, 280]]);
+    await journey("28-open-only-music", [[160, 220, 120]]);
+    await journey("29-home-page-one", [[160, 466, 80], [160, 425, 300]]);
+    await journey("30-page-two", [[280, 200, 80], [140, 200, 300], [140, 200, 3500], [40, 200, 300]], true,
+      { afterMs: 750, name: "30a-home-pages-follow-finger" });
+    await journey("31-second-page-edge", [[250, 220, 80], [30, 220, 350]]);
+    await journey("32-page-one", [[40, 200, 80], [280, 200, 450]]);
+    await journey("33-page-reversal", [[280, 200, 80], [80, 200, 350], [280, 200, 350], [280, 200, 200]]);
+    await journey("34-vertical-home-drag", [[200, 310, 80], [200, 210, 350]], false);
+    // All new mockups launch from their actual icons and retain the originating page.
+    for (let index = 6; index < APPS.length; index++) {
+      if (index === 12) await journey("35-page-two-again", [[280, 200, 80], [40, 200, 400]]);
+      const name = APPS[index].name.toLowerCase();
+      await journey(`36-${name}-open`, icon(index));
+      await journey(`37-${name}-scroll`, [[160, 389, 80], [160, 214, 350]]);
+      await journey(`38-${name}-home`, [[160, 466, 80], [160, 425, 300]]);
+    }
+    await journey("39-dock-music-on-page-two", icon(1));
+    await journey("40-dock-return-to-page-two", [[160, 466, 80], [160, 425, 300]]);
+    await journey("41-page-two-overview", [[160, 466, 80], [160, 365, 350]]);
+    await journey("42-page-two-open-recent", [[160, 220, 120]]);
+    await journey("43-return-to-page-two", [[160, 466, 80], [160, 425, 300]]);
+    await journey("44-page-one", [[40, 200, 80], [280, 200, 450]]);
+    const homeMotion: Point[] = [[280, 210, 80]];
+    for (let i = 0; i < 12; i++) homeMotion.push([40, 210, 320], [280, 210, 320]);
+    homeMotion.push([280, 210, 150]);
+    const homeFps = await sampleMotion("home-motion", homeMotion, 3);
+    await capture("45-home-after-paging");
+    await journey("46-home-reveals-recent-music", [[160, 466, 80], [160, 365, 350]]);
+    await journey("47-browse-calculator-without-opening", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
+    await journey("48-exit-browsed-deck", [[310, 425, 120]]);
+    await journey("49-home-reveals-music-again", [[160, 466, 80], [160, 365, 350]]);
+    await journey("50-browse-calculator", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
+    await journey("51-open-calculator-from-page-one", [[160, 220, 120]]);
+    await journey("52-off-page-app-minimizes-on-page-one", [[160, 466, 80], [160, 425, 300]], true,
+      { afterMs: 570, name: "52a-off-page-app-shrinks-inside-current-page" });
+    await journey("53-home-reveals-recent-calculator", [[160, 466, 80], [160, 365, 350]]);
+    await journey("54-leave-on-home-page-one", [[310, 425, 120]]);
+    const final = await status();
+    if (+final.fields.touch_sequences !== results.length + motionContacts ||
+        +final.fields.completed_touch_sequences !== results.length + motionContacts || final.fields.touch_down !== "0") {
+      throw new Error("Unexpected input during the continuous-motion gestures");
+    }
+    await Bun.write(join(output, "results.json"), JSON.stringify({ build: initial.fields.build_id, input: "GraphicsServices injected touch", results, quickFps, stackFps, homeFps }, null, 2) + "\n");
+    console.log(`Quick switch FPS: ${quickFps.map(n => n.toFixed(2)).join(", ")}`);
+    console.log(`Stack parallax FPS: ${stackFps.map(n => n.toFixed(2)).join(", ")}`);
+    console.log(`Home paging FPS: ${homeFps.map(n => n.toFixed(2)).join(", ")}`);
+    if ([...quickFps, ...stackFps, ...homeFps].some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Continuous gesture rendering fell below 55 FPS");
+    console.log(`Validated ${results.length} journeys; captures and receipts: ${output}`);
   }
-  await paging; await Bun.sleep(850); await capture("16-after-stack-motion");
-  await journey("17-open-photos", [[160, 220, 120]]);
-  await journey("18-quick-switch-music", [[40, 466, 80], [220, 466, 450]]);
-  await journey("19-quick-back-photos", [[280, 466, 80], [80, 466, 450]]);
-  const quickMotion: Point[] = [[40, 466, 80]];
-  for (let i = 0; i < 12; i++) quickMotion.push([240, 466, 320], [55, 466, 320]);
-  quickMotion.push([40, 466, 300], [40, 466, 150]);
-  await Bun.sleep(2500);
-  const switching = gesture(quickMotion), quickFps: number[] = [];
-  for (let i = 0; i < 3; i++) {
-    await Bun.sleep(1600);
-    const sample = await status();
-    await Bun.write(join(output, `quick-motion-${i}.status`), sample.raw + "\n");
-    quickFps.push(+sample.fields.window_frames * 1e6 / +sample.fields.window_us);
-  }
-  await switching; await Bun.sleep(850); await capture("20-after-quick-motion");
-  await journey("21-home", [[160, 466, 80], [160, 425, 300]]);
-  await journey("22-open-music", icon(1));
-  await journey("23-lift-hold-overview", [[160, 466, 80], [160, 425, 300], [160, 425, 280]]);
-  for (const name of ["music", "photos", "notes", "weather", "today", "places", ...APPS.slice(6).map(app => app.name.toLowerCase())]) {
-    await journey(`24-close-${name}`, [[160, 250, 80], [160, 90, 350]]);
-  }
-  await journey("25-empty-to-home", [[160, 220, 120]]);
-  await journey("26-reopen-music", icon(1));
-  await journey("27-only-music-in-deck", [[160, 466, 80], [160, 425, 300], [160, 425, 280]]);
-  await journey("28-open-only-music", [[160, 220, 120]]);
-  await journey("29-home-page-one", [[160, 466, 80], [160, 425, 300]]);
-  await journey("30-page-two", [[280, 200, 80], [140, 200, 300], [140, 200, 3500], [40, 200, 300]], true,
-    { afterMs: 750, name: "30a-home-pages-follow-finger" });
-  await journey("31-second-page-edge", [[250, 220, 80], [30, 220, 350]]);
-  await journey("32-page-one", [[40, 200, 80], [280, 200, 450]]);
-  await journey("33-page-reversal", [[280, 200, 80], [80, 200, 350], [280, 200, 350], [280, 200, 200]]);
-  await journey("34-vertical-home-drag", [[200, 310, 80], [200, 210, 350]], false);
-  // All new mockups launch from their actual icons and retain the originating page.
-  for (let index = 6; index < APPS.length; index++) {
-    if (index === 12) await journey("35-page-two-again", [[280, 200, 80], [40, 200, 400]]);
-    const name = APPS[index].name.toLowerCase();
-    await journey(`36-${name}-open`, icon(index));
-    await journey(`37-${name}-scroll`, [[160, 389, 80], [160, 214, 350]]);
-    await journey(`38-${name}-home`, [[160, 466, 80], [160, 425, 300]]);
-  }
-  await journey("39-dock-music-on-page-two", icon(1));
-  await journey("40-dock-return-to-page-two", [[160, 466, 80], [160, 425, 300]]);
-  await journey("41-page-two-overview", [[160, 466, 80], [160, 365, 350]]);
-  await journey("42-page-two-open-recent", [[160, 220, 120]]);
-  await journey("43-return-to-page-two", [[160, 466, 80], [160, 425, 300]]);
-  await journey("44-page-one", [[40, 200, 80], [280, 200, 450]]);
-  const homeMotion: Point[] = [[280, 210, 80]];
-  for (let i = 0; i < 12; i++) homeMotion.push([40, 210, 320], [280, 210, 320]);
-  homeMotion.push([280, 210, 150]);
-  await Bun.sleep(2500);
-  const homePaging = gesture(homeMotion), homeFps: number[] = [];
-  for (let i = 0; i < 3; i++) {
-    await Bun.sleep(1600);
-    const sample = await status();
-    await Bun.write(join(output, `home-motion-${i}.status`), sample.raw + "\n");
-    homeFps.push(+sample.fields.window_frames * 1e6 / +sample.fields.window_us);
-  }
-  await homePaging; await Bun.sleep(850); await capture("45-home-after-paging");
-  await journey("46-home-reveals-recent-music", [[160, 466, 80], [160, 365, 350]]);
-  await journey("47-browse-calculator-without-opening", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
-  await journey("48-exit-browsed-deck", [[310, 425, 120]]);
-  await journey("49-home-reveals-music-again", [[160, 466, 80], [160, 365, 350]]);
-  await journey("50-browse-calculator", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
-  await journey("51-open-calculator-from-page-one", [[160, 220, 120]]);
-  await journey("52-off-page-app-minimizes-on-page-one", [[160, 466, 80], [160, 425, 300]], true,
-    { afterMs: 570, name: "52a-off-page-app-shrinks-inside-current-page" });
-  await journey("53-home-reveals-recent-calculator", [[160, 466, 80], [160, 365, 350]]);
-  await journey("54-leave-on-home-page-one", [[310, 425, 120]]);
-  const final = await status();
-  if (+final.fields.touch_sequences !== results.length + 3 ||
-      +final.fields.completed_touch_sequences !== results.length + 3 || final.fields.touch_down !== "0") {
-    throw new Error("Unexpected input during the continuous-motion gestures");
-  }
-  await Bun.write(join(output, "results.json"), JSON.stringify({ build: initial.fields.build_id, input: "GraphicsServices injected touch", results, quickFps, stackFps, homeFps }, null, 2) + "\n");
-  console.log(`Quick switch FPS: ${quickFps.map(n => n.toFixed(2)).join(", ")}`);
-  console.log(`Stack parallax FPS: ${stackFps.map(n => n.toFixed(2)).join(", ")}`);
-  console.log(`Home paging FPS: ${homeFps.map(n => n.toFixed(2)).join(", ")}`);
-  if ([...quickFps, ...stackFps, ...homeFps].some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Continuous gesture rendering fell below 55 FPS");
-  console.log(`Validated ${results.length} journeys; captures and receipts: ${output}`);
 } finally {
   await remote(`rm -f ${deviceHelper}`);
   await run([...ssh.slice(0, -1), "-O", "exit", ssh[ssh.length - 1]]);
