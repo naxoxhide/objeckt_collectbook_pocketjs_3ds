@@ -2,8 +2,9 @@
 
 `icons.py` authors sixteen Blender scenes from meshes, curves, text, materials,
 an orthographic camera and area lights. Each scene retains editable geometry.
-The tile uses a continuous-corner outline. Symbols sit above the tile with
-beveled edges and cast shadows. All artwork is GPL-3.0-or-later.
+The tile uses the original 56-pixel footprint and 16-pixel circular corners.
+Its outer edge has no bevel rim. Symbols sit above the tile with beveled edges
+and cast shadows. All artwork is GPL-3.0-or-later.
 
 **The app uses the committed 128×128 PNGs in `src/art/`.** Blender and a GPU are
 not required to build or run Pocket Shell. The two Home pages and dock use the

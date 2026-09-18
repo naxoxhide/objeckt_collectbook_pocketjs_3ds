@@ -86,12 +86,16 @@ def text(body,x,y,size,z,mat):
 
 def base(color):
     m=material('Glazed color '+color,color,.27,0,.32)
-    # Continuous-corner superellipse; the bevel adds a small lit edge.
+    # Match the original 56px tile with 16px circular corners. Fill the bake
+    # footprint and omit the thin bevel rim, which aliases at E7 density.
+    half=2.06/2
+    radius=2.06*16/56
     pts=[]
-    for i in range(192):
-        t=i*math.tau/192;c=math.cos(t);s=math.sin(t)
-        pts.append((.945*math.copysign(abs(c)**.5,c),.945*math.copysign(abs(s)**.5,s)))
-    extrude('Continuous-corner enamel tile',pts,0,.15,m,.035)
+    for cx,cy,a in [(half-radius,half-radius,0),(-half+radius,half-radius,90),(-half+radius,-half+radius,180),(half-radius,-half+radius,270)]:
+        for step in range(33):
+            t=math.radians(a+step*90/32)
+            pts.append((cx+radius*math.cos(t),cy+radius*math.sin(t)))
+    extrude('56px tile with 16px circular corners',pts,0,.15,m,0)
 
 def symbol(i):
     z=.20;w=M['white'];ink=M['ink'];red=M['red'];blue=M['blue'];gold=M['gold']
