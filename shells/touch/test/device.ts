@@ -85,7 +85,8 @@ async function capture(name: string) {
   return { ...receipt, hash: Bun.hash(raw).toString(16) };
 }
 
-const results: { name: string; actions: number; fps: number }[] = [];
+// Per-journey captures interrupt rendering; only the continuous-motion samples measure cadence.
+const results: { name: string; actions: number; postCaptureFps: number }[] = [];
 async function journey(name: string, points: readonly Point[], action = true, intermediate?: { afterMs: number; name: string }) {
   const before = await status();
   const input = gesture(points);
@@ -98,7 +99,7 @@ async function journey(name: string, points: readonly Point[], action = true, in
     throw new Error(`${name}: expected one completed UIKit contact; missing or concurrent input invalidates this journey`);
   }
   if (action && (after.fields.action_name !== descriptor.actionName || +after.fields.action_value <= +before.fields.action_value)) throw new Error(`${name}: no guest action`);
-  const result = { name, actions: +after.fields.action_value, fps: +after.fields.window_frames * 1e6 / +after.fields.window_us };
+  const result = { name, actions: +after.fields.action_value, postCaptureFps: +after.fields.window_frames * 1e6 / +after.fields.window_us };
   results.push(result); console.log(JSON.stringify(result));
 }
 
@@ -109,6 +110,41 @@ try {
   await Bun.sleep(1600);
   const restarted = await capture("00-home");
   if (restarted.fields.touch_sequences !== "0") throw new Error("Fresh process received input before validation");
+  if (process.argv.includes("--motion-only")) {
+    // Reproduce the Photos/Notes/Music neighborhood from the full journey.
+    for (const index of [3, 4, 5, 1]) {
+      await journey(`motion-open-${index}`, icon(index));
+      await journey(`motion-home-${index}`, [[160, 466, 80], [160, 425, 300]]);
+    }
+    await journey("motion-overview", [[160, 466, 80], [160, 365, 350]]);
+    await journey("motion-browse-photos", [[160, 230, 80], [250, 230, 400], [250, 230, 150]]);
+    const points: Point[] = [[160, 250, 80]];
+    for (let i = 0; i < 12; i++) points.push([235, 250, 320], [90, 250, 320]);
+    points.push([160, 250, 300], [160, 250, 150]);
+    const samples: number[] = [];
+    for (let round = 0; round < 2; round++) {
+      await Bun.sleep(2500);
+      const moving = gesture(points);
+      for (let i = 0; i < 4; i++) {
+        await Bun.sleep(1600);
+        const sample = await status();
+        await Bun.write(join(output, `stack-repeat-${round}-${i}.status`), sample.raw + "\n");
+        samples.push(+sample.fields.window_frames * 1e6 / +sample.fields.window_us);
+      }
+      await moving; await Bun.sleep(850);
+    }
+    await capture("motion-final-stack");
+    await journey("motion-leave-home", [[310, 425, 120]]);
+    const final = await status();
+    if (+final.fields.touch_sequences !== results.length + 2 ||
+        +final.fields.completed_touch_sequences !== results.length + 2 || final.fields.touch_down !== "0") {
+      throw new Error("Unexpected input during the repeated stack gestures");
+    }
+    await Bun.write(join(output, "results.json"), JSON.stringify({ build: initial.fields.build_id,
+      input: "GraphicsServices injected touch", results, stackFps: samples }, null, 2) + "\n");
+    console.log(`Repeated stack FPS: ${samples.map(n => n.toFixed(2)).join(", ")}`);
+    if (samples.some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Repeated stack rendering fell below 55 FPS");
+  } else {
   await journey("00b-open-today", icon(0));
   await journey("01-scroll", [[160, 389, 80], [160, 214, 350]]);
   await journey("02-detail", [[110, 230, 120]]);
@@ -226,6 +262,7 @@ try {
   console.log(`Home paging FPS: ${homeFps.map(n => n.toFixed(2)).join(", ")}`);
   if ([...quickFps, ...stackFps, ...homeFps].some(fps => !Number.isFinite(fps) || fps < 55)) throw new Error("Continuous gesture rendering fell below 55 FPS");
   console.log(`Validated ${results.length} journeys; captures and receipts: ${output}`);
+  }
 } finally {
   await remote(`rm -f ${deviceHelper}`);
   await run([...ssh.slice(0, -1), "-O", "exit", ssh[ssh.length - 1]]);

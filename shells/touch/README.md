@@ -111,6 +111,12 @@ bun run touch status --require-action
 bun run touch capture
 ```
 
+With `bun run touch tunnel` active, `bun shells/touch/test/device.ts` injects
+UIKit contacts and checks window actions on the device. Pass `--motion-only`
+to repeat the Photos/Notes/Music deck motion without screenshots during the
+sampling windows. Per-journey `postCaptureFps` includes screenshot overhead;
+use `quickFps`, `stackFps` and `homeFps` for continuous-motion cadence.
+
 The shell owns its app, sixteen mockups, gesture model, assets and tests.
 The Omarchy companion remains in `shells/ipod`. The shared runtime, renderer,
 UIKit host and installer come from the pinned `vendor/pocketjs` submodule.
@@ -176,7 +182,7 @@ before profiling:
 ```sh
 bun vendor/pocketjs/tools/symbian.ts build app --manifest shells/touch/pocket.json \
   --project-root shells/touch --outdir .pocket-build/validation/touch/e7-performance \
-  --sis-version 0.3.63 --frame-rate 60 --perf-trace
+  --sis-version 0.3.66 --frame-rate 60 --perf-trace
 ```
 
 Use matching viewport dimensions and keep the phone in that orientation during the run.
