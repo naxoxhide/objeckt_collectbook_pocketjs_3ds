@@ -1,3 +1,53 @@
 {
-  "wallpaper.svg": { "linear": true }
+  "art/wallpaper.png": {
+    "linear": true
+  },
+  "art/today.png": {
+    "linear": true
+  },
+  "art/music.png": {
+    "linear": true
+  },
+  "art/places.png": {
+    "linear": true
+  },
+  "art/weather.png": {
+    "linear": true
+  },
+  "art/notes.png": {
+    "linear": true
+  },
+  "art/photos.png": {
+    "linear": true
+  },
+  "art/mail.png": {
+    "linear": true
+  },
+  "art/calendar.png": {
+    "linear": true
+  },
+  "art/clock.png": {
+    "linear": true
+  },
+  "art/safari.png": {
+    "linear": true
+  },
+  "art/files.png": {
+    "linear": true
+  },
+  "art/settings.png": {
+    "linear": true
+  },
+  "art/camera.png": {
+    "linear": true
+  },
+  "art/health.png": {
+    "linear": true
+  },
+  "art/books.png": {
+    "linear": true
+  },
+  "art/calculator.png": {
+    "linear": true
+  }
 }

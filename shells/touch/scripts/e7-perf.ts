@@ -5,8 +5,10 @@ import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { shellLayout } from '../src/layout.ts';
 
-const [command, file, widthArg = '360', heightArg = '640'] = process.argv.slice(2);
-if (!file || !['make', 'analyze'].includes(command)) throw new Error('e7-perf.ts make <input.tsv> [width height] | analyze <trace.tsv>');
+const [command, file, widthArg = '360', heightArg = '640', scenario = 'navigation'] = process.argv.slice(2);
+if (!file || !['make', 'analyze'].includes(command) || !['navigation', 'deck-dismiss'].includes(scenario)) {
+  throw new Error('e7-perf.ts make <input.tsv> | analyze <trace.tsv> [width height [navigation|deck-dismiss]]');
+}
 if (command === 'make') {
   const width = Number(widthArg), height = Number(heightArg);
   if (![[360, 640], [640, 360]].some(([w, h]) => w === width && h === height)) throw new Error('Expected an E7 viewport');
@@ -22,20 +24,31 @@ if (command === 'make') {
   };
   const bar = height - 14, cx = width / 2;
   swipe(2000, cx, bar, cx, bar - 100);
-  for (let at = 4000; at < 14000; at += 2000) {
-    const left = (at / 2000) % 2 === 0;
-    swipe(at, left ? width - 40 : 40, height / 2, left ? 40 : width - 40, height / 2);
+  if (scenario === 'deck-dismiss') {
+    const y = Math.min(300, height / 2);
+    swipe(4000, cx, bar, cx, bar - 100);
+    for (const at of [6500, 8000, 9500, 11000]) swipe(at, 100, y, width - 60, y);
+    swipe(12500, width - 80, y, 100, y);
+    points.push([14000, pack(width - 20, height - 60)], [14150, 0]);
+    swipe(17500, cx, bar, cx, bar - 100);
+    swipe(19500, 100, y, width - 60, y);
+    points.push([21000, pack(width - 20, height - 60)], [21150, 0]);
+  } else {
+    for (let at = 4000; at < 14000; at += 2000) {
+      const left = (at / 2000) % 2 === 0;
+      swipe(at, left ? width - 40 : 40, height / 2, left ? 40 : width - 40, height / 2);
+    }
+    for (let at = 14000; at < 24000; at += 2000) {
+      tap(at, 0); swipe(at + 800, cx, bar, cx, bar - 100);
+    }
+    swipe(25000, cx, bar, cx, bar - 100);
+    swipe(26800, cx, height / 2, cx + 100, height / 2);
+    swipe(28200, cx, height / 2, cx - 100, height / 2);
   }
-  for (let at = 14000; at < 24000; at += 2000) {
-    tap(at, 0); swipe(at + 800, cx, bar, cx, bar - 100);
-  }
-  swipe(25000, cx, bar, cx, bar - 100);
-  swipe(26800, cx, height / 2, cx + 100, height / 2);
-  swipe(28200, cx, height / 2, cx - 100, height / 2);
   points.push([30000, 0]);
   mkdirSync(dirname(resolve(file)), { recursive: true });
   await Bun.write(file, points.map(p => p.join('\t')).join('\n') + '\n');
-  console.log(JSON.stringify({ input: resolve(file), width, height, points: points.length }));
+  console.log(JSON.stringify({ input: resolve(file), scenario, width, height, points: points.length }));
 } else {
   const lines = (await Bun.file(file).text()).trim().split(/\r?\n/);
   const metadata = Object.fromEntries(lines.filter(l => l.startsWith('# ')).map(l => { const [k, ...v] = l.slice(2).split('\t'); return [k, v.join(' ')]; }));
@@ -47,7 +60,18 @@ if (command === 'make') {
   const rows = lines.filter(l => /^\d+\t/.test(l)).map(l => Object.fromEntries(l.split('\t').map((v, i) => [keys[i], Number(v)])));
   const at = (r: Record<string, number>) => r.replay_ms ?? r.elapsed_ms;
   if (!rows.length || at(rows.at(-1)!) < 29900) throw new Error('Incomplete 30 second workload');
-  const phases = [['idle-app', 500, 1950], ['home-pages', 4000, 13500], ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
+  if (scenario === 'deck-dismiss') {
+    const intervals = [2000, 4000, 6500, 8000, 9500, 11000, 12500, 17500, 19500].map(t => [t, t + 375]);
+    intervals.push([14000, 14150], [21000, 21150]);
+    // Real touches can interleave with injected input. Reject interference
+    // before either measured exit, including contacts during startup/idle.
+    const interference = rows.find(r => at(r) < 21650 && r.touches !== Number(intervals.some(([a, b]) => at(r) >= a && at(r) < b)));
+    if (interference) throw new Error(`Replay touch mismatch at ${at(interference)} ms; leave the screen untouched during measurement`);
+  }
+  const phases = scenario === 'deck-dismiss' ?
+    [['browsed-deck', 13000, 14000], ['dismiss-start', 14150, 14350], ['dismiss', 14150, 14650],
+      ['dismiss-again', 21150, 21650]] as const :
+    [['idle-app', 500, 1950], ['home-pages', 4000, 13500], ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
   const metrics = phases.map(([name, from, to]) => {
     const part = rows.filter(r => at(r) >= from && at(r) < to &&
       // Exclude the first texture-upload interval if it crosses into idle.
@@ -63,5 +87,5 @@ if (command === 'make') {
       .filter(key => keys.includes(key)).map(key => [key, stats(key)]));
     return { name, frames: part.length, fps: 1000 / stats('delta_ms').mean, delta: stats('delta_ms'), js: stats('js_ms'), tick: stats('tick_ms'), draw: stats('draw_ms'), present: stats('present_ms'), render };
   });
-  console.log(JSON.stringify({ metadata, frames: rows.length, phases: metrics }, null, 2));
+  console.log(JSON.stringify({ metadata, scenario, frames: rows.length, phases: metrics }, null, 2));
 }

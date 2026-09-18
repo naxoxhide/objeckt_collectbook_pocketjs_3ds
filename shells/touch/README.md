@@ -224,4 +224,7 @@ timing, then removes the sender. Outputs stay in ignored
 run directory. **Injected device input does not measure physical touch-to-photon
 latency.** Human touch feel remains a separate acceptance check.
 
-Original shell code and the [wallpaper](src/wallpaper.svg) are GPL-3.0-or-later.
+The Home screen uses sixteen [Blender-baked icons](art/README.md) and a
+[wallpaper](src/art/wallpaper.png) with supersampled curves and a continuous
+gradient. The normal E7 package keeps the mock apps and the 60 Hz host setting.
+Original shell code and artwork are GPL-3.0-or-later.

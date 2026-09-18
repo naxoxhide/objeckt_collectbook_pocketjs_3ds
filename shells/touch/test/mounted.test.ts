@@ -51,10 +51,35 @@ describe("Touch shell through the mounted PocketJS guest", () => {
     const prop = (index: number, property: number) => writes.get(nodes[index])!.get(property)!;
     function checkCullingPixels() {
       const saved = nodes.flatMap((node, i) => [node, PROP.opacity, prop(i, PROP.opacity)]);
-      const culled = Bun.hash(world.render());
+      const clipped = world.render().slice();
       host!.setPropBatch(new Float64Array(nodes.flatMap(node => [node, PROP.opacity, 1])).buffer);
-      expect(Bun.hash(world.render())).toBe(culled);
+      expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
       host!.setPropBatch(new Float64Array(saved).buffer);
+      const clips = nodes.map((_, i) => named.get(`TouchCardClip${i}`)!);
+      const savedClips = clips.flatMap(node => [node, PROP.width, writes.get(node)!.get(PROP.width)!]);
+      host!.setPropBatch(new Float64Array(clips.flatMap(node => [node, PROP.width, 320])).buffer);
+      const reference = world.render();
+      // Clipping a rotated triangle can quantize its edge one pixel away.
+      // Whole-window culling stays byte-exact above; partial clipping permits
+      // only a small number of those edge pixels, never missing content.
+      let changed = 0;
+      for (let p = 0; p < reference.length; p += 4) {
+        if (reference.subarray(p, p + 4).every((v, c) => v === clipped[p + c])) continue;
+        changed++;
+        const x = (p / 4) % 320, y = Math.floor(p / 4 / 320);
+        const low = [255, 255, 255, 255], high = [0, 0, 0, 0];
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          if (x + dx < 0 || x + dx >= 320 || y + dy < 0 || y + dy >= 480) continue;
+          const q = ((y + dy) * 320 + x + dx) * 4;
+          for (let c = 0; c < 4; c++) {
+            low[c] = Math.min(low[c], reference[q + c]);
+            high[c] = Math.max(high[c], reference[q + c]);
+          }
+        }
+        expect(Math.max(...high.map((v, c) => v - low[c]))).toBeGreaterThan(1);
+      }
+      expect(changed).toBeLessThanOrEqual(320 * 480 * 0.001);
+      host!.setPropBatch(new Float64Array(savedClips).buffer);
     }
     expect(prop(0, PROP.scaleX)).toBe(1);
     const beforeScroll = Bun.hash(world.render());
@@ -192,7 +217,20 @@ describe("Touch shell through the mounted PocketJS guest", () => {
     expect(prop(1, PROP.translateX)).toBeCloseTo(57.6, 5);
     glide(160, 230, 250, 230, 18, 8);
     expect(prop(15, PROP.translateX)).toBeCloseTo(57.6, 5);
-    tap(310, 425);
+    const deckPose = nodes.map((_, i) => [prop(i, PROP.translateX), prop(i, PROP.translateY), prop(i, PROP.scaleX)]);
+    frame(310, 425); frame();
+    for (let f = 0; f < 45; f++) {
+      frame();
+      nodes.forEach((_, i) => {
+        expect(prop(i, PROP.translateY)).toBe(deckPose[i][1]);
+        expect(prop(i, PROP.scaleX)).toBe(deckPose[i][2]);
+        if (deckPose[i][0] >= 320) expect(prop(i, PROP.translateX)).toBe(deckPose[i][0]);
+        else expect(prop(i, PROP.translateX)).toBeLessThanOrEqual(deckPose[i][0]);
+      });
+      expect(nodes.every((_, i) => [0, 1].includes(prop(i, PROP.opacity)))).toBe(true);
+      if (f % 9 === 0) checkCullingPixels();
+    }
+    idle();
     glide(160, 466, 160, 365);
     expect(prop(1, PROP.translateX)).toBeCloseTo(57.6, 5);
     expect(prop(15, PROP.translateX)).toBeLessThan(prop(1, PROP.translateX));

@@ -28,10 +28,85 @@ function middleDeck() {
 }
 
 describe("Touch shell continuous navigation", () => {
+  test("dismissing a browsed deck preserves occlusion without sweeping in offscreen windows", () => {
+    for (const [width, height] of [[320, 480], [360, 640], [640, 360]]) for (const hz of [30, 60]) {
+      const n = new Navigation(width, height), order = [...n.opened];
+      n.down(contact(width / 2, height - 14));
+      n.move(contact(width / 2, height - 114), 1 / hz);
+      n.up(contact(width / 2, height - 114)); settle(n, hz);
+      n.down(contact(width / 2, height - 14));
+      n.move(contact(width / 2, height - 114), 1 / hz);
+      n.up(contact(width / 2, height - 114)); settle(n, hz);
+      for (let i = 0; i < 4; i++) {
+        n.down(contact(width / 2, height / 2));
+        n.move(contact(width / 2 + 90, height / 2), 1 / hz);
+        n.up(contact(width / 2 + 90, height / 2)); settle(n, hz);
+      }
+      expect(n.selected).not.toBe(order.at(-1)!);
+      const before = pose(n);
+      n.down(contact(width - 10, height - 58)); n.up(contact(width - 10, height - 58));
+      expect(n.destination).toBe("home");
+      expect(pose(n)).toEqual(before);
+      let previousCover = 0;
+      for (let frame = 0; frame < hz * 2; frame++) {
+        n.step(1 / hz);
+        n.cards.forEach((c, i) => {
+          expect(c.y.value).toBe(before[i][1]);
+          expect(c.scale.value).toBe(before[i][2]);
+          if (before[i][0] >= width) expect(c.x.value).toBe(before[i][0]);
+          else expect(c.x.value).toBeLessThanOrEqual(before[i][0]);
+        });
+        if (n.coveringHome) {
+          expect(n.homeCover.value).toBeGreaterThanOrEqual(previousCover);
+          previousCover = n.homeCover.value;
+          expect(n.cards.every(c => c.visibility.value === 1)).toBe(true);
+        } else expect(n.cards.every(c => c.visibility.value === 0)).toBe(true);
+      }
+      expect(n.coveringHome).toBe(false);
+      expect(n.opened).toEqual(order);
+    }
+  });
+
+  test("a Home cover can be caught, reversed or cancelled without rebasing visible cards", () => {
+    for (const cancel of [false, true]) {
+      const n = middleDeck(), order = [...n.opened];
+      n.down(contact(310, 425)); n.up(contact(310, 425));
+      for (let i = 0; i < 6; i++) n.step(1 / 60);
+      const before = pose(n), cover = n.homeCover.value;
+      expect(cover).toBeGreaterThan(0);
+      n.down(contact(160, 466)); n.move(contact(160, 466), 1 / 60); n.step(1 / 60);
+      expect(pose(n)).toEqual(before);
+      expect(n.homeCover.value).toBe(cover);
+      n.move(contact(160, 366), 1 / 60);
+      expect(n.homeCover.value).toBeLessThan(cover);
+      const caught = pose(n), caughtCover = n.homeCover.value;
+      n.up(contact(160, 366), cancel);
+      expect(pose(n)).toEqual(caught);
+      expect(n.homeCover.value).toBe(caughtCover);
+      settle(n);
+      expect(n.coveringHome).toBe(false);
+      expect(n.homeCover.value).toBe(0);
+      expect(n.opened).toEqual(order);
+      expect(n.destination).toBe(cancel ? "home" : "switcher");
+      if (cancel) expect(n.cards.every(c => c.visibility.value === 0)).toBe(true);
+      else {
+        expect(n.selected).toBe(order.at(-1)!);
+        expect(n.cards[n.selected].x.value).toBeCloseTo(57.6, 5);
+      }
+    }
+  });
+
   test("opaque stacked cards skip fully covered windows but never a visible strip or a translucent cover", () => {
     const n = new Navigation(); lift(n, 16); settle(n);
     expect(n.opened.map(i => n.cards[i].visibility.value)).toEqual(Array(COUNT).fill(1));
     expect(n.cards.slice(0, 6).map((_, i) => n.paintVisibility(i))).toEqual([1, 1, 0, 0, 0, 0]);
+    expect(n.paintRight(1)).toBeLessThan(100);
+    n.cards[0].visibility.value = 0.5;
+    expect(n.paintRight(1)).toBe(320); // A translucent card cannot hide content.
+    n.cards[0].visibility.value = 1;
+    n.cards[0].y.value += 100;
+    expect(n.paintRight(1)).toBe(320); // Dismissal exposes the top of its neighbor.
+    n.cards[0].y.value -= 100;
     n.cards[1].visibility.value = 0.5;
     expect(n.paintVisibility(2)).toBe(1);
     n.cards[1].visibility.value = 1;
