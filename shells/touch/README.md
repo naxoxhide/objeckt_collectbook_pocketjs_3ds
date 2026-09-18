@@ -5,7 +5,7 @@ Nokia E7 (360 × 640 portrait or 640 × 360 landscape).
 Sixteen retained mock apps share two Home pages: Today, Music, Places, Weather,
 Notes, Photos, Mail, Calendar, Clock, Safari, Files, Settings, Camera, Health,
 Books and Calculator. They contain sample content and do not connect to external
-services.
+services. **Cold launch opens the first Home page**, with the mock apps retained in the background.
 
 <img src="media/home.png" width="240" alt="Four-column Home grid and fixed four-app dock" /> <img src="media/home-second.png" width="240" alt="Second Home page with four apps and two information cards" /> <img src="media/quick-switch.png" width="240" alt="Equal-size live windows during a bottom-edge quick switch" />
 

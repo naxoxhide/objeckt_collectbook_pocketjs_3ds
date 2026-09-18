@@ -20,7 +20,6 @@ describe('Nokia E7 native viewport', () => {
   for (const [width, height] of [[360, 640], [640, 360]]) {
     test(`${width}x${height}: both Home pages, edge navigation, recency and dismissal at 30 Hz`, () => {
       const n = new Navigation(width, height), cx = width / 2, bar = height - 14;
-      swipe(n, [cx, bar], [cx, bar - 41]);
       expect(n.destination).toBe('home');
       for (let page = 0; page < 2; page++) {
         if (page) swipe(n, [width - 40, 210], [40, 210]);
@@ -83,7 +82,8 @@ describe('Nokia E7 native viewport', () => {
       const collect = (node: any, out: number[]) => { if (node.n?.startsWith('TouchWindow')) out.push(node.i); if (node.n?.startsWith('TouchCardClip')) clips.push(node.i); node.k?.forEach((n: any) => collect(n, out)); };
       collect(world.getTree(), nodes); expect(nodes).toHaveLength(16);
       const l = shellLayout(width, height), cx = width / 2, bar = height - 14;
-      glide(cx, bar, cx, bar - 41);
+      expect(nodes.every(node => writes.get(node)!.get(PROP.opacity) === 0)).toBe(true);
+      expect(actions).toHaveLength(0);
       // Re-enter from Home before Photos' icon minimization has faded out.
       // Check the mounted painter, not only the navigation model's targets.
       const photoIcon = l.icon(5), photo = nodes[5];
@@ -133,7 +133,7 @@ describe('Nokia E7 native viewport', () => {
   test('orientation change cancels an old contact without launching or closing a window', () => {
     for (const destination of ['home', 'app', 'switcher'] as const) {
       const n = new Navigation(360, 640);
-      if (destination === 'home') swipe(n, [180, 626], [180, 585]);
+      if (destination === 'app') { n.open(0); settle(n); }
       if (destination === 'switcher') swipe(n, [180, 626], [180, 585], 8);
       const order = [...n.opened], selected = n.selected;
       n.down(contact(180, 626)); n.move(contact(100, 570), 1 / 30);
@@ -220,7 +220,6 @@ for (const [width, height] of [[360, 640], [640, 360]]) {
       frame(); for (let i = 0; i < 60; i++) frame();
     }
     for (let i = 0; i < 120; i++) frame();
-    glide(width / 2, height - 14, width / 2, height - 100);
     glide(width / 2, height - 14, width / 2, height - 100);
     for (let i = 0; i < 5; i++) glide(width / 2, height / 2, width / 2 + 90, height / 2);
     glide(width / 2, height / 2, width / 2, 20);

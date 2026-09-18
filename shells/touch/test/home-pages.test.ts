@@ -7,7 +7,6 @@ const touch = (x: number, y = 190, vx = 0, id = 0): Contact => ({ id, x, y, vx, 
 const settle = (n: Navigation) => { for (let i = 0; i < 120; i++) n.step(1 / 60); };
 function home() {
   const n = new Navigation();
-  n.down(touch(160, 466)); n.move(touch(160, 420), 1 / 60); n.up(touch(160, 420)); settle(n);
   expect(n.destination).toBe("home");
   return n;
 }
@@ -16,6 +15,22 @@ function page(n: Navigation, x0: number, x1: number, vx = 0) {
 }
 
 describe("SpringBoard home pages", () => {
+  test("cold launch starts settled on the first Home page at every viewport", () => {
+    for (const [width, height] of [[320, 480], [360, 640], [640, 360]]) {
+      const n = new Navigation(width, height);
+      expect(n.destination).toBe("home"); expect(n.homePage.value).toBe(0);
+      expect(n.scene.value).toBe(n.scene.target);
+      expect(n.cards.every(c => c.visibility.value === 0 && c.visibility.target === 0)).toBe(true);
+      expect(n.actions).toBe(0); expect(n.lastAction).toBe("ready");
+      const before = n.cards.map(c => [c.x.value, c.y.value, c.scale.value]);
+      settle(n);
+      expect(n.cards.map(c => [c.x.value, c.y.value, c.scale.value])).toEqual(before);
+      const icon = n.layout.icon(1);
+      n.down(touch(icon.x + 28, icon.y + 28)); n.up(touch(icon.x + 28, icon.y + 28)); settle(n);
+      expect(n.destination).toBe("app"); expect(n.selected).toBe(1);
+    }
+  });
+
   test("four-column rows and a four-icon dock have disjoint hit targets on both pages", () => {
     expect(HOME_COLUMNS).toBe(4); expect(HOME_PAGES).toBe(2);
     expect(APPS.filter(app => app.page < 0)).toHaveLength(4);

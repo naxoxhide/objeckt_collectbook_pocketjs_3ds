@@ -73,7 +73,16 @@ interface Drag {
 
 export class Navigation {
   layout: ShellLayout = shellLayout();
-  constructor(width = WIDTH, height = HEIGHT) { this.layout = shellLayout(width, height); }
+  constructor(width = WIDTH, height = HEIGHT) {
+    this.layout = shellLayout(width, height);
+    // The first rendered frame is Home, with no startup minimization.
+    this.targets("home");
+    for (const a of [this.scene, this.overview, this.deck, this.homeCover,
+      ...this.cards.flatMap(c => [c.x, c.y, c.scale, c.visibility])]) {
+      a.value = a.target;
+      a.velocity = 0;
+    }
+  }
   private stackPose(relative: number) {
     return stackPose(relative, this.layout.width, this.layout.height, this.layout.overviewY);
   }

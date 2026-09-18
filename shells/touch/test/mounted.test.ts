@@ -96,6 +96,12 @@ describe("Touch shell through the mounted PocketJS guest", () => {
       expect(changed).toBeLessThanOrEqual(320 * 480 * 0.001);
       host!.setPropBatch(new Float64Array(savedClips).buffer);
     }
+    // Cold launch paints Home while keeping every mockup mounted.
+    expect(nodes.every((_, i) => prop(i, PROP.opacity) === 0)).toBe(true);
+    expect(actions).toHaveLength(0);
+    const bootHome = Bun.hash(world.render());
+    idle(); expect(Bun.hash(world.render())).toBe(bootHome);
+    tap(APPS[0].x + 28, APPS[0].y + 28);
     expect(prop(0, PROP.scaleX)).toBe(1);
     const beforeScroll = Bun.hash(world.render());
     glide(155, 388, 155, 200);

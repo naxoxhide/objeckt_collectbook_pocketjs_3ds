@@ -107,8 +107,9 @@ try {
   await remote(`/usr/bin/killall PocketShellTouch 2>/dev/null || true`);
   await remote("/bin/su mobile -c '/usr/bin/uiopen pocketjs-shell-touch://launch'");
   await Bun.sleep(1600);
-  const restarted = await capture("00-app");
+  const restarted = await capture("00-home");
   if (restarted.fields.touch_sequences !== "0") throw new Error("Fresh process received input before validation");
+  await journey("00b-open-today", icon(0));
   await journey("01-scroll", [[160, 389, 80], [160, 214, 350]]);
   await journey("02-detail", [[110, 230, 120]]);
   await journey("03-edge-back", [[4, 238, 80], [221, 238, 420]]);

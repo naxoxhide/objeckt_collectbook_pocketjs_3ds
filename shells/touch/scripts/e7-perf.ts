@@ -25,6 +25,7 @@ if (command === 'make') {
     points.push([at, pack(icon.x + 28, icon.y + 28)], [at + 150, 0]);
   };
   const bar = height - 14, cx = width / 2;
+  tap(500, 0); // Cold launch is Home; enter Today before the app gestures.
   swipe(2000, cx, bar, cx, bar - 100);
   if (scenario === 'all-apps') {
     APPS.forEach((app, i) => {
@@ -79,6 +80,7 @@ if (command === 'make') {
     // Real touches can interleave with injected input. Reject interference
     // throughout the measured phases, including contacts during startup/idle.
     const until = scenario === 'deck-dismiss' ? 21650 : 29800;
+    intervals.unshift([500, 650]);
     const interference = rows.find(r => at(r) < until && r.touches !== Number(intervals.some(([a, b]) => at(r) >= a && at(r) < b)));
     if (interference) throw new Error(`Replay touch mismatch at ${at(interference)} ms; leave the screen untouched during measurement`);
   }
@@ -87,7 +89,7 @@ if (command === 'make') {
       [`${app.name}-home`, appTimes[i] + 650, appTimes[i] + 1300]] as const) : scenario === 'deck-dismiss' ?
     [['deep-paging', 6500, 13400], ['browsed-deck', 13000, 14000], ['dismiss-start', 14150, 14350], ['dismiss', 14150, 14650],
       ['dismiss-again', 21150, 21650]] as const :
-    [['idle-app', 500, 1950], ['first-app-home', 2000, 3650], ['home-pages', 4000, 13500],
+    [['idle-app', 1100, 1950], ['first-app-home', 2000, 3650], ['home-pages', 4000, 13500],
       ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
   const metrics = phases.map(([name, from, to]) => {
     const part = rows.filter(r => at(r) >= from && at(r) < to &&
