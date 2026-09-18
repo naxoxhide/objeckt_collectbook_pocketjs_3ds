@@ -4,13 +4,13 @@ import { analyzeE7Trace, e7Workload, type Scenario } from '../scripts/e7-perf.ts
 
 // A synthetic native trace with independent wall time (50 fps) and the host's
 // fixed virtual clock (60 Hz). It never stands in for device performance.
-function trace(scenario: Scenario = 'navigation', width = 360, height = 640) {
+function trace(scenario: Scenario = 'navigation', width = 360, height = 640, frameRate = 60) {
   const { points } = e7Workload(width, height, scenario);
-  const lines = [`# viewport\t${width}\t${height}`, `# replay_points\t${points.length}`, '# inactive_frames\t0', '# frame_rate\t60',
+  const lines = [`# viewport\t${width}\t${height}`, `# replay_points\t${points.length}`, '# inactive_frames\t0', `# frame_rate\t${frameRate}`,
     'frame\telapsed_ms\tdelta_ms\tjs_ms\ttick_ms\tdraw_ms\tpresent_ms\ttouches\treplay_ms'];
   let point = 0, touch = 0;
-  for (let frame = 0; frame <= 1800; frame++) {
-    const at = Math.floor(frame * 1000 / 60);
+  for (let frame = 0; frame <= frameRate * 30; frame++) {
+    const at = Math.floor(frame * 1000 / frameRate);
     while (point < points.length && points[point][0] <= at) touch = points[point++][1];
     lines.push([frame, frame * 20, frame ? 20 : 0, 4, 1, 7, 8, Number(touch !== 0), at].join('\t'));
   }
@@ -18,13 +18,13 @@ function trace(scenario: Scenario = 'navigation', width = 360, height = 640) {
 }
 
 for (const scenario of ['navigation', 'deck-dismiss', 'all-apps'] as const) {
-  for (const [width, height] of [[360, 640], [640, 360]]) {
-    test(`${scenario} ${width}x${height}: analyze the generated contacts with wall-clock frame intervals`, () => {
+  for (const [width, height] of [[360, 640], [640, 360]]) for (const frameRate of [30, 60]) {
+    test(`${scenario} ${width}x${height} at ${frameRate} Hz: analyze the generated contacts with wall-clock frame intervals`, () => {
       const { points } = e7Workload(width, height, scenario);
       expect(points.every(([at], i) => !i || at > points[i - 1][0])).toBe(true);
       expect(points.at(-1)).toEqual([30000, 0]);
-      const report = analyzeE7Trace(trace(scenario, width, height), width, height, scenario);
-      expect(report.frames).toBe(1801);
+      const report = analyzeE7Trace(trace(scenario, width, height, frameRate), width, height, scenario);
+      expect(report.frames).toBe(frameRate * 30 + 1);
       expect(report.phases.every(p => p.frames > 0 && p.fps === 50)).toBe(true);
       if (scenario === 'all-apps') expect(report.phases).toHaveLength(32);
     });
