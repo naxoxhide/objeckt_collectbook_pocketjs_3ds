@@ -7,7 +7,7 @@ import { createScroller } from "@pocketjs/framework/kinetics";
 import { onFrame } from "@pocketjs/framework/lifecycle";
 import { simulationHz } from "@pocketjs/framework/clock";
 import { reportAppAction, getOps, hostViewport } from "@pocketjs/framework/host";
-import { Navigation, smooth } from "./navigation.ts";
+import { Navigation, clamp, smooth } from "./navigation.ts";
 import { APPS, HOME_PAGES } from "./catalog.ts";
 import { AppMockup } from "./mockups.tsx";
 import { Icon } from "./icons.tsx";
@@ -22,9 +22,10 @@ export default function TouchShell() {
   const [layout, setLayout] = createSignal(nav.layout);
   const [stack, setStack] = createSignal("");
   const layer = (index: number) => { stack(); return nav.layer(index); };
-  const windows: NodeMirror[] = [], contents: NodeMirror[] = [], labels: NodeMirror[] = [];
+  const homeLayer = () => { stack(); return nav.coveringHome ? CHROME_LAYER - 1 : 0; };
+  const windows: NodeMirror[] = [], clips: NodeMirror[] = [], contents: NodeMirror[] = [], labels: NodeMirror[] = [];
   const pages: NodeMirror[] = [], dots: NodeMirror[] = [];
-  let wallpaper!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
+  let wallpaper!: NodeMirror, homeCover!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
   let detail!: NodeMirror, detailUnder!: NodeMirror, pill!: NodeMirror;
   let batch: JumpBatch | undefined;
   // These properties are owned by this painter, with no native animations.
@@ -86,11 +87,13 @@ export default function TouchShell() {
 
   function paint() {
     if (!batch) return;
-    setStack(`${nav.foreground}/${nav.opened.join(",")}`);
+    setStack(`${nav.foreground}/${nav.opened.join(",")}/${nav.coveringHome}`);
     const active = nav.cards[nav.selected];
     const scene = nav.scene.value;
     const expansion = smooth(0.175, 1, scene);
-    jump(home, "opacity", 1 - smooth(0.2, 0.52, scene));
+    const cover = clamp(nav.homeCover.value);
+    jump(home, "opacity", nav.coveringHome ? cover : 1 - smooth(0.2, 0.52, scene));
+    jump(homeCover, "opacity", cover);
     for (let i = 0; i < HOME_PAGES; i++) {
       const x = (i - nav.homePage.value) * layout().width;
       jump(pages[i], "translateX", x);
@@ -103,6 +106,11 @@ export default function TouchShell() {
       (1 - smooth(0, 16, Math.abs(active.x.value) + Math.abs(active.y.value))));
     jump(wallpaper, "scaleX", 1.06 - expansion * 0.06);
     jump(wallpaper, "scaleY", 1.06 - expansion * 0.06);
+    // One wallpaper quad covers the whole deck. Windows stay opaque beneath
+    // it, so neither hidden content nor newly uncovered cards bleed through.
+    jump(homeCover, "translateX", -8 * nav.homePage.value * (1 - expansion));
+    jump(homeCover, "scaleX", 1.06 - expansion * 0.06);
+    jump(homeCover, "scaleY", 1.06 - expansion * 0.06);
     const overviewOpacity = Math.max(0, Math.min(1, nav.overview.value));
     jump(overview, "opacity", nav.opened.length ? overviewOpacity : 0);
     jump(empty, "opacity", nav.opened.length ? 0 : overviewOpacity);
@@ -114,6 +122,7 @@ export default function TouchShell() {
     for (let i = 0; i < windows.length; i++) {
       const c = nav.cards[i], b = i * 6;
       const visibility = nav.paintVisibility(i), offset = scrollers[i].offset();
+      jump(clips[i], "width", visibility ? nav.paintRight(i) : layout().width);
       if (windowPose[b] === c.x.value && windowPose[b + 1] === c.y.value &&
           windowPose[b + 2] === c.scale.value && windowPose[b + 3] === visibility &&
           windowPose[b + 4] === c.visibility.value && windowPose[b + 5] === offset) continue;
@@ -150,7 +159,8 @@ export default function TouchShell() {
 
   return <View debugName="TouchShell" class="relative overflow-hidden" style={{ width: layout().width, height: layout().height }}>
     <Image nodeRef={n => wallpaper = n!} class="absolute" style={layout().wallpaper} src="art/wallpaper.png" />
-    <View nodeRef={n => home = n!} class="absolute inset-0">
+    <Image nodeRef={n => homeCover = n!} debugName="TouchHomeCover" class="absolute opacity-0" style={{ ...layout().wallpaper, zIndex: CHROME_LAYER - 2 }} src="art/wallpaper.png" />
+    <View nodeRef={n => home = n!} debugName="TouchHome" class="absolute inset-0" style={{ zIndex: homeLayer() }}>
       {Array.from({ length: HOME_PAGES }, (_, page) => <View nodeRef={n => pages[page] = n!} debugName={`TouchHomePage${page}`} class="absolute inset-0">
         <Text class="absolute left-[22] text-2xl font-bold text-white" style={{ insetT: layout().headerY }}>{page === 0 ? 'Pocket Shell' : 'A little more.'}</Text>
         <Text class="absolute left-[24] text-xs text-[#eee0df]" style={{ insetT: layout().subtitleY }}>{page === 0 ? 'A little room to move.' : 'Everyday things, a swipe away.'}</Text>
@@ -185,29 +195,32 @@ export default function TouchShell() {
     </View>
     {NAMES.map((name, i) => <>
       <Text nodeRef={n => labels[i] = n!} class="absolute left-0 top-0 text-sm font-bold text-white" style={{ zIndex: layer(i) + 1 }}>{name}</Text>
-      <View nodeRef={n => windows[i] = n!} debugName={`TouchWindow${i}`} class="absolute left-0 top-0 overflow-hidden"
-        style={{ width: layout().width, height: layout().height, originX: -0.5, originY: -0.5, zIndex: layer(i), bgColor: APPS[i].background }}>
-        <View nodeRef={n => { if (i === 0) detailUnder = n!; }} class="absolute inset-0">
-          <Text class="absolute left-[24] top-[47] text-xs font-bold tracking-wide" style={{ textColor: COLORS[i] }}>{APPS[i].subtitle}</Text>
-          <Text class="absolute left-[22] top-[73] text-4xl font-bold text-[#27334b]">{name}</Text>
-          <View class="absolute w-[320] overflow-hidden" style={{ insetL: layout().contentLeft, insetT: layout().contentTop, height: layout().contentHeight }}>
-            <View nodeRef={n => contents[i] = n!} class="absolute left-0 top-0 w-[320] h-[620]">
-              <AppMockup index={i} />
+      <View nodeRef={n => clips[i] = n!} debugName={`TouchCardClip${i}`} class="absolute left-0 top-0 overflow-hidden"
+        style={{ width: layout().width, height: layout().height, zIndex: layer(i) }}>
+        <View nodeRef={n => windows[i] = n!} debugName={`TouchWindow${i}`} class="absolute left-0 top-0 overflow-hidden"
+          style={{ width: layout().width, height: layout().height, originX: -0.5, originY: -0.5, bgColor: APPS[i].background }}>
+          <View nodeRef={n => { if (i === 0) detailUnder = n!; }} class="absolute inset-0">
+            <Text class="absolute left-[24] top-[47] text-xs font-bold tracking-wide" style={{ textColor: COLORS[i] }}>{APPS[i].subtitle}</Text>
+            <Text class="absolute left-[22] top-[73] text-4xl font-bold text-[#27334b]">{name}</Text>
+            <View class="absolute w-[320] overflow-hidden" style={{ insetL: layout().contentLeft, insetT: layout().contentTop, height: layout().contentHeight }}>
+              <View nodeRef={n => contents[i] = n!} class="absolute left-0 top-0 w-[320] h-[620]">
+                <AppMockup index={i} />
+              </View>
             </View>
+            <Text class="absolute left-0 right-0 bottom-[26] text-center text-xs text-[#8b90a3]">Swipe for home · hold for apps</Text>
           </View>
-          <Text class="absolute left-0 right-0 bottom-[26] text-center text-xs text-[#8b90a3]">Swipe for home · hold for apps</Text>
+          {i === 0 ? <View nodeRef={n => detail = n!} class="absolute inset-0 bg-[#f7f8fc]" style={{ translateX: layout().width }}>
+            <Text class="absolute left-[23] top-[48] text-sm font-bold text-[#537bf4]">‹  Today</Text>
+            <Text class="absolute left-[23] top-[99] text-4xl font-bold text-[#27334b]">Slow afternoon</Text>
+            <Text class="absolute left-[25] top-[148] text-sm text-[#7b8496]">Leave a little space in your day.</Text>
+            <View class="absolute w-[274] h-[156] rounded-[16] bg-[#e5ecff]" style={{ insetL: layout().landscape ? layout().width - 297 : (layout().width - 274) / 2, insetT: layout().landscape ? 80 : 194 }}>
+              <Text class="absolute left-[21] top-[24] text-xl font-bold text-[#38559b]">Take the scenic route.</Text>
+              <Text class="absolute left-[21] top-[66] text-base text-[#5c75aa]">A walk. A record. A good coffee.</Text>
+              <Text class="absolute left-[21] top-[110] text-sm text-[#5c75aa]">The rest can wait.</Text>
+            </View>
+            <Text class="absolute text-sm text-[#7b8496]" style={{ insetL: layout().landscape ? layout().width - 295 : 25, insetT: layout().landscape ? 270 : 382 }}>Drag from the left edge to go back.</Text>
+          </View> : null}
         </View>
-        {i === 0 ? <View nodeRef={n => detail = n!} class="absolute inset-0 bg-[#f7f8fc]" style={{ translateX: layout().width }}>
-          <Text class="absolute left-[23] top-[48] text-sm font-bold text-[#537bf4]">‹  Today</Text>
-          <Text class="absolute left-[23] top-[99] text-4xl font-bold text-[#27334b]">Slow afternoon</Text>
-          <Text class="absolute left-[25] top-[148] text-sm text-[#7b8496]">Leave a little space in your day.</Text>
-          <View class="absolute w-[274] h-[156] rounded-[16] bg-[#e5ecff]" style={{ insetL: layout().landscape ? layout().width - 297 : (layout().width - 274) / 2, insetT: layout().landscape ? 80 : 194 }}>
-            <Text class="absolute left-[21] top-[24] text-xl font-bold text-[#38559b]">Take the scenic route.</Text>
-            <Text class="absolute left-[21] top-[66] text-base text-[#5c75aa]">A walk. A record. A good coffee.</Text>
-            <Text class="absolute left-[21] top-[110] text-sm text-[#5c75aa]">The rest can wait.</Text>
-          </View>
-          <Text class="absolute text-sm text-[#7b8496]" style={{ insetL: layout().landscape ? layout().width - 295 : 25, insetT: layout().landscape ? 270 : 382 }}>Drag from the left edge to go back.</Text>
-        </View> : null}
       </View>
     </>)}
     <Text class="absolute left-[23] top-[13] text-xs font-bold text-[#80879a]" style={{ zIndex: CHROME_LAYER }}>9:41</Text>

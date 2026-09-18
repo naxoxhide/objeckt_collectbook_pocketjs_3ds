@@ -66,7 +66,7 @@ interface Drag {
   quiet: number; holdX: number; holdY: number; overview: number;
   order: number[]; quick: number; caughtQuick: boolean;
   destination: Destination; selected: number; detail: number;
-  homePage: number; homeTarget: number;
+  homePage: number; homeTarget: number; homeCover: number;
   cards: { x: number; y: number; scale: number; visibility: number }[];
 }
 
@@ -110,6 +110,10 @@ export class Navigation {
   foreground = 0;
   readonly scene = axis(1);
   readonly overview = axis(0);
+  // Cover the opaque deck with Home instead of fading every window subtree.
+  // Primitive opacity exposes overlapping contents and defeats card culling.
+  readonly homeCover = axis(0);
+  coveringHome = false;
   readonly detail = axis(0);
   drag: Drag | null = null;
   actions = 0;
@@ -126,9 +130,11 @@ export class Navigation {
     const right = Math.min(this.layout.width, card.x.value + this.layout.width * card.scale.value);
     const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
     if (right <= left || bottom <= top) return opacity;
-    for (const i of this.opened) {
+    const layer = this.layer(index);
+    for (let rank = 0; rank < this.opened.length; rank++) {
+      const i = this.opened[rank];
       const other = this.cards[i];
-      if (this.layer(i) <= this.layer(index) || other.visibility.value < 1) continue;
+      if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
       const x = other.x.value, y = other.y.value;
       const r = x + this.layout.width * other.scale.value, b = y + this.layout.height * other.scale.value;
       // Two rectangles inside the rounded card, inset one point for raster
@@ -140,8 +146,39 @@ export class Navigation {
     return opacity;
   }
 
+  paintRight(index: number): number {
+    const card = this.cards[index], width = this.layout.width;
+    const right = Math.min(width, card.x.value + width * card.scale.value);
+    const top = Math.max(0, card.y.value);
+    const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
+    if (right <= 0 || card.x.value >= width || bottom <= top) return width;
+    let edge = width;
+    const layer = this.layer(index);
+    for (let rank = 0; rank < this.opened.length; rank++) {
+      const i = this.opened[rank];
+      const other = this.cards[i];
+      if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
+      const x = other.x.value, y = other.y.value;
+      const r = x + width * other.scale.value, b = y + this.layout.height * other.scale.value;
+      const inset = 28 * other.scale.value + 1;
+      // The next card covers this window's right side. Keep the rounded
+      // corner fringe and a raster guard; clip only inside its opaque body.
+      if (right <= r - 1 && top >= y + 1 && bottom <= b - 1) {
+        edge = Math.min(edge, x + (top >= y + inset && bottom <= b - inset ? 1 : inset));
+      }
+    }
+    return clamp(Math.ceil(edge), 0, width);
+  }
+
   private targets(destination: Destination, keepDeck = false): void {
     const source = this.destination;
+    if (destination === "home" && source === "switcher" && this.opened.length) this.coveringHome = true;
+    this.homeCover.target = destination === "home" && this.coveringHome ? 1 : 0;
+    const coverDeck = destination === "home" && this.coveringHome;
+    // Withdraw only the visible deck and its left-hand neighbors. Newer
+    // windows parked beyond the right edge must never sweep through Home.
+    const withdraw = coverDeck ? Math.max(0, ...this.opened.filter(i => this.cards[i].x.value < this.layout.width)
+      .map(i => this.cards[i].x.value + this.layout.width * this.cards[i].scale.value)) + HOME_ENTRY_GAP : 0;
     this.quickSettling = false;
     this.quickOrder = [];
     this.destination = destination;
@@ -157,15 +194,16 @@ export class Navigation {
       if (!this.opened.includes(i)) return;
       const pose = this.stackPose(this.opened.indexOf(i) - rank);
       const foreground = destination === "app" && i === this.selected;
-      const minimize = destination === "home" && source === "app" && i === this.selected;
+      const minimize = destination === "home" && source === "app" && !coverDeck && i === this.selected;
       const home = this.homeReturnPosition(i);
       // A visible icon receives its app; an icon on another page uses an
       // in-page fade target. Background windows keep their compact pose.
       card.scale.target = foreground ? 1 : minimize ? ICON_SIZE / this.layout.width : destination === "home" ? card.scale.value : pose.scale;
       card.x.target = foreground ? 0 : minimize ? home.x : destination === "home" ?
-        card.x.value - (source === "app" ? 0 : this.layout.width * 2 + 32) : pose.x;
+        card.x.value - (coverDeck ? (card.x.value < this.layout.width ? withdraw : 0) :
+          source === "app" ? 0 : this.layout.width * 2 + 32) : pose.x;
       card.y.target = foreground ? 0 : minimize ? home.y : destination === "home" ? card.y.value : pose.y;
-      card.visibility.target = foreground || destination === "switcher" ? 1 : 0;
+      card.visibility.target = foreground || destination === "switcher" || coverDeck ? 1 : 0;
       if (this.stackDriven) {
         const actual = this.stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
         // Residual springs absorb a caught app transition or dismissed neighbor.
@@ -314,7 +352,7 @@ export class Navigation {
       (c.x < 30 && this.selected === 0 && this.detail.value > 0.01) ? "back" :
       (this.selected === 0 && this.detail.value > 0.01) ? "detail" : "content";
     if (kind === "navigation" || kind === "reveal" || kind === "pager") this.foreground = -1;
-    if (kind === "reveal") this.prepareLeftEntry();
+    if (kind === "reveal" && !this.coveringHome) this.prepareLeftEntry();
     const caughtQuick = this.quickSettling;
     if (kind !== "navigation") this.quickOrder = [];
     else if (!this.quickOrder.length) this.quickOrder = [...this.opened];
@@ -330,7 +368,7 @@ export class Navigation {
       dx: 0, dy: 0, moved: false, hit, scene: this.scene.value,
       direction: "pending", deck: this.deck.value, pivot, quiet: 0, holdX: c.x, holdY: c.y, overview: this.overview.value,
       destination: this.destination, selected: this.selected, detail: this.detail.value,
-      homePage: this.homePage.value, homeTarget: this.homePage.target,
+      homePage: this.homePage.value, homeTarget: this.homePage.target, homeCover: this.homeCover.value,
       order: [...this.quickOrder], quick: caughtQuick ? 1 : 0, caughtQuick,
       cards: this.cards.map(card => ({ x: card.x.value, y: card.y.value, scale: card.scale.value, visibility: card.visibility.value })),
     };
@@ -391,6 +429,7 @@ export class Navigation {
       // A held contact only peeks past the left edge, regardless of deck width.
       // Resistance has no hard stop; release springs the remaining distance.
       const t = Math.min(1, (HOME_ENTRY_GAP + HOME_PEEK) / distance) * lift / (lift + HOME_PEEK);
+      if (this.coveringHome) this.follow(this.homeCover, d.homeCover * HOME_PEEK / (lift + HOME_PEEK), dt);
       this.follow(this.overview, d.overview + (1 - d.overview) * t, dt);
       this.follow(this.scene, d.scene + (OVERVIEW_SCALE - d.scene) * t, dt);
       this.opened.forEach((i, rank) => {
@@ -550,6 +589,14 @@ export class Navigation {
     });
     if (kind !== "navigation" && kind !== "reveal") stepSpring(this.scene, dt);
     if (kind !== "reveal") stepSpring(this.overview, dt, 24);
+    if (kind !== "reveal") stepSpring(this.homeCover, dt);
+    if (this.coveringHome && !this.drag && this.homeCover.value === this.homeCover.target) {
+      if (this.homeCover.target === 1) {
+        this.cards.forEach(card => Object.assign(card.visibility, axis(0)));
+        Object.assign(this.homeCover, axis(0));
+      }
+      this.coveringHome = false;
+    }
     if (kind !== "back") stepSpring(this.detail, dt);
     if (this.quickSettling && !this.drag) {
       const active = this.cards[this.selected];
