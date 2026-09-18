@@ -85,7 +85,7 @@ if (command === 'make') {
   const phases: readonly (readonly [string, number, number])[] = scenario === 'all-apps' ?
     APPS.flatMap((app, i) => [[`${app.name}-open`, appTimes[i] + 150, appTimes[i] + 650],
       [`${app.name}-home`, appTimes[i] + 650, appTimes[i] + 1300]] as const) : scenario === 'deck-dismiss' ?
-    [['browsed-deck', 13000, 14000], ['dismiss-start', 14150, 14350], ['dismiss', 14150, 14650],
+    [['deep-paging', 6500, 13400], ['browsed-deck', 13000, 14000], ['dismiss-start', 14150, 14350], ['dismiss', 14150, 14650],
       ['dismiss-again', 21150, 21650]] as const :
     [['idle-app', 500, 1950], ['first-app-home', 2000, 3650], ['home-pages', 4000, 13500],
       ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
@@ -93,6 +93,7 @@ if (command === 'make') {
     const part = rows.filter(r => at(r) >= from && at(r) < to &&
       // Exclude the first texture-upload interval if it crosses into idle.
       (name !== 'idle-app' || r.replay_ms !== undefined || r.elapsed_ms - r.delta_ms >= from) &&
+      (name !== 'deep-paging' || (at(r) - from) % 1500 < 900) &&
       (name !== 'home-pages' || (at(r) - from) % 2000 < 900) &&
       (name !== 'app-home' || ((at(r) - from) % 2000 >= 800 && (at(r) - from) % 2000 < 1650)));
     if (!part.length) throw new Error(`Missing samples for ${name}`);

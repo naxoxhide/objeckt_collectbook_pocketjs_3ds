@@ -125,9 +125,10 @@ export default function TouchShell() {
       (Math.round(255 - 206 * ink) << 8) | Math.round(255 - 217 * ink)) >>> 0);
     jump(pill, "scaleX", 1 - (nav.drag?.kind === "navigation" ? 0.12 * (1 - expansion) : 0));
     let windowsChanged = false;
+    const occluders = nav.paintOccluders();
     for (let i = 0; i < windows.length; i++) {
       const c = nav.cards[i], b = i * 13, p = i * 8;
-      const bounds = nav.paintBounds(i), visibility = bounds.opacity, offset = scrollers[i].offset();
+      const bounds = nav.paintBounds(i, occluders), visibility = bounds.opacity, offset = scrollers[i].offset();
       // Move a full-width scissor's right edge, then counter-translate its
       // child. The visible window stays in the same place without relayout.
       const clipX = bounds.right - layout().width;
@@ -137,21 +138,32 @@ export default function TouchShell() {
           windowPose[p + 2] === c.scale.value && windowPose[p + 3] === visibility &&
           windowPose[p + 4] === c.visibility.value && windowPose[p + 5] === offset &&
           windowPose[p + 6] === clipX && windowPose[p + 7] === contentClipX) continue;
+      windowsChanged = true;
+      // Each entry retains its value in the compiled batch. Most moving
+      // windows only change x; avoid re-encoding eleven unchanged values.
+      if (windowPose[p] !== c.x.value || windowPose[p + 6] !== clipX) batch.set(b, c.x.value - clipX);
+      if (windowPose[p + 1] !== c.y.value) {
+        batch.set(b + 1, c.y.value); batch.set(b + 8, c.y.value - 29);
+      }
+      if (windowPose[p + 2] !== c.scale.value) {
+        batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
+        if (!(windowPose[p + 2] <= 0.72 && c.scale.value <= 0.72))
+          batch.set(b + 4, 28 * (1 - smooth(0.72, 1, c.scale.value)));
+      }
+      if (windowPose[p + 3] !== visibility) batch.set(b + 5, visibility);
+      if (windowPose[p + 6] !== clipX) batch.set(b + 6, clipX);
+      if (windowPose[p] !== c.x.value) batch.set(b + 7, c.x.value);
+      if (windowPose[p + 4] !== c.visibility.value ||
+          (windowPose[p + 2] !== c.scale.value && !(windowPose[p + 2] <= 0.72 && c.scale.value <= 0.72)))
+        batch.set(b + 9, Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
+      if (windowPose[p + 5] !== offset) batch.set(b + 10, -offset);
+      if (windowPose[p + 7] !== contentClipX) {
+        batch.set(b + 11, contentClipX); batch.set(b + 12, -contentClipX);
+      }
       windowPose[p] = c.x.value; windowPose[p + 1] = c.y.value;
       windowPose[p + 2] = c.scale.value; windowPose[p + 3] = visibility;
       windowPose[p + 4] = c.visibility.value; windowPose[p + 5] = offset;
-      windowPose[p + 6] = clipX;
-      windowPose[p + 7] = contentClipX;
-      windowsChanged = true;
-      batch.set(b, c.x.value - clipX); batch.set(b + 1, c.y.value);
-      batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
-      batch.set(b + 4, 28 * (1 - smooth(0.72, 1, c.scale.value)));
-      batch.set(b + 5, visibility);
-      batch.set(b + 6, clipX);
-      batch.set(b + 7, c.x.value); batch.set(b + 8, c.y.value - 29);
-      batch.set(b + 9, Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
-      batch.set(b + 10, -offset);
-      batch.set(b + 11, contentClipX); batch.set(b + 12, -contentClipX);
+      windowPose[p + 6] = clipX; windowPose[p + 7] = contentClipX;
     }
     if (windowsChanged) batch.commit();
     jump(detail, "translateX", layout().width * (1 - nav.detail.value));

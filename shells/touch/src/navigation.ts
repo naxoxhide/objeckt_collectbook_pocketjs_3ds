@@ -22,6 +22,7 @@ export type DragKind = "navigation" | "reveal" | "pager" | "content" | "detail" 
 export interface Contact { id: number; x: number; y: number; vx: number; vy: number }
 export interface Axis { value: number; velocity: number; target: number }
 export interface Card { x: Axis; y: Axis; scale: Axis; visibility: Axis }
+interface Occluder { layer: number; left: number; top: number; right: number; bottom: number; inset: number }
 const axis = (value: number): Axis => ({ value, velocity: 0, target: value });
 export const clamp = (v: number, lo = 0, hi = 1): number => Math.max(lo, Math.min(hi, v));
 export function smooth(a: number, b: number, v: number): number {
@@ -123,13 +124,37 @@ export class Navigation {
     return index === this.foreground ? COUNT * 2 + 4 : Math.max(0, this.opened.indexOf(index)) * 2 + 2;
   }
 
+  private readonly occluderPool: Occluder[] = APPS.map(() => ({ layer: 0, left: 0, top: 0, right: 0, bottom: 0, inset: 0 }));
+  private readonly occluders: Occluder[] = [];
+
+  // The painter resolves the opaque neighbors once, then reuses those bounds
+  // for every window. Offscreen windows cannot occlude a viewport pixel.
+  paintOccluders(): readonly Occluder[] {
+    const { width, height } = this.layout;
+    let count = 0;
+    for (let rank = 0; rank < this.opened.length; rank++) {
+      const i = this.opened[rank], card = this.cards[i];
+      if (card.visibility.value < 1) continue;
+      const x = card.x.value, y = card.y.value, scale = card.scale.value;
+      const right = x + width * scale, bottom = y + height * scale;
+      if (right <= 0 || x >= width || bottom <= 0 || y >= height) continue;
+      const bounds = this.occluderPool[count];
+      bounds.layer = i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2;
+      bounds.left = x; bounds.top = y; bounds.right = right; bounds.bottom = bottom;
+      bounds.inset = 28 * scale + 1;
+      this.occluders[count++] = bounds;
+    }
+    this.occluders.length = count;
+    return this.occluders;
+  }
+
   paintVisibility(index: number): number { return this.paintBounds(index).opacity; }
 
   paintRight(index: number): number { return this.paintBounds(index).right; }
 
   // Resolve full and partial occlusion in one walk over the same opaque
   // neighbors. The painter uses both results for each retained window.
-  paintBounds(index: number): { opacity: number; right: number; contentRight: number } {
+  paintBounds(index: number, occluders = this.paintOccluders()): { opacity: number; right: number; contentRight: number } {
     const card = this.cards[index], width = this.layout.width, height = this.layout.height;
     const opacity = clamp(card.visibility.value);
     if (!opacity) return { opacity: 0, right: width, contentRight: width };
@@ -144,17 +169,13 @@ export class Navigation {
     // content even when the outer antialiased edges remain visible.
     const contentTop = card.y.value + 32 * card.scale.value;
     const contentBottom = card.y.value + (height - 16) * card.scale.value;
-    for (let rank = 0; rank < this.opened.length; rank++) {
-      const i = this.opened[rank], other = this.cards[i];
-      if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
-      const x = other.x.value, y = other.y.value;
-      const r = x + width * other.scale.value, b = y + height * other.scale.value;
-      const inset = 28 * other.scale.value + 1;
+    for (let rank = 0; rank < occluders.length; rank++) {
+      const other = occluders[rank];
+      if (other.layer <= layer) continue;
+      const x = other.left, y = other.top, r = other.right, b = other.bottom, inset = other.inset;
       if (right <= r - 1 && contentTop >= y + 1 && contentBottom <= b - 1) {
         const insideContentY = contentTop >= y + inset && contentBottom <= b - inset;
-        // Keep a full glyph cell behind the opaque edge. Clipping a scaled
-        // cell changes its rounded quad/UV endpoints, including visible ink.
-        contentEdge = Math.min(contentEdge, x + Math.max(insideContentY ? 1 : inset, 64 * card.scale.value + 2));
+        contentEdge = Math.min(contentEdge, x + (insideContentY ? 1 : inset));
       }
       // Keep the rounded corner fringe and a one-pixel raster guard.
       if (right <= r - 1 && top >= y + 1 && bottom <= b - 1) {

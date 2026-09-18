@@ -206,9 +206,9 @@ starts at the native packed-input boundary, below the guest input dispatcher.
 Physical touch delivery still needs a manual check.
 The window painter translates fixed-size clipping containers, avoiding layout
 work when an occluding edge moves. It clips app content behind opaque windows
-while retaining each background's rounded fringe. A glyph-cell guard keeps
-visible scaled text outside the clipped quad boundary. Window poses remain
-live; clipping does not change navigation state or animation targets.
+while retaining each background's rounded fringe. The pinned renderer retains
+scaled glyph sampling under the moving scissor. Window poses remain live;
+clipping does not change navigation state or animation targets.
 The diagnostic runtime keeps the device awake for five minutes and saves the
 optional screenshot after measurement. Normal builds keep device sleep enabled.
 
