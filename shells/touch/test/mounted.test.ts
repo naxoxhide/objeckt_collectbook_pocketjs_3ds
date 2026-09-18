@@ -49,11 +49,19 @@ describe("Touch shell through the mounted PocketJS guest", () => {
     for (const { name } of APPS) expect(treeHasText(initialTree, name)).toBe(true);
     expect(treeHasText(initialTree, "Today")).toBe(true);
     const clips = nodes.map((_, i) => named.get(`TouchCardClip${i}`)!);
+    const contentClips = nodes.map((_, i) => named.get(`TouchContentClip${i}`)!);
+    const contentPlanes = nodes.map((_, i) => named.get(`TouchContentPlane${i}`)!);
     const prop = (index: number, property: number) => writes.get(nodes[index])!.get(property)! +
       (property === PROP.translateX ? writes.get(clips[index])!.get(PROP.translateX)! : 0);
     function checkCullingPixels() {
       const saved = nodes.flatMap((node, i) => [node, PROP.opacity, prop(i, PROP.opacity)]);
       const clipped = world.render().slice();
+      const savedContentClips = contentClips.flatMap((node, i) => [node, PROP.translateX, writes.get(node)!.get(PROP.translateX)!,
+        contentPlanes[i], PROP.translateX, writes.get(contentPlanes[i])!.get(PROP.translateX)!]);
+      host!.setPropBatch(new Float64Array(contentClips.flatMap((node, i) =>
+        [node, PROP.translateX, 0, contentPlanes[i], PROP.translateX, 0])).buffer);
+      expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
+      host!.setPropBatch(new Float64Array(savedContentClips).buffer);
       host!.setPropBatch(new Float64Array(nodes.flatMap(node => [node, PROP.opacity, 1])).buffer);
       expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
       host!.setPropBatch(new Float64Array(saved).buffer);

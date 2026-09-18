@@ -26,6 +26,7 @@ export default function TouchShell() {
   const layer = (index: number) => layers[index]();
   const homeLayer = createMemo(() => { stack(); return nav.coveringHome ? CHROME_LAYER - 1 : 0; });
   const windows: NodeMirror[] = [], clips: NodeMirror[] = [], contents: NodeMirror[] = [], labels: NodeMirror[] = [];
+  const contentClips: NodeMirror[] = [], contentPlanes: NodeMirror[] = [];
   const pages: NodeMirror[] = [], dots: NodeMirror[] = [];
   let wallpaper!: NodeMirror, homeCover!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
   let detail!: NodeMirror, detailUnder!: NodeMirror, pill!: NodeMirror;
@@ -33,7 +34,7 @@ export default function TouchShell() {
   // These properties are owned by this painter, with no native animations.
   // Keep mounted content, but avoid JS/native calls for identical poses.
   const painted = new WeakMap<NodeMirror, Record<string, number>>();
-  const windowPose = new Float64Array(APPS.length * 7).fill(NaN);
+  const windowPose = new Float64Array(APPS.length * 8).fill(NaN);
   function jump(node: NodeMirror, prop: Parameters<typeof applyJump>[1], value: number) {
     let previous = painted.get(node);
     if (!previous) { previous = {}; painted.set(node, previous); }
@@ -85,6 +86,7 @@ export default function TouchShell() {
       [node, "translateX"], [node, "translateY"], [node, "scaleX"], [node, "scaleY"], [node, "radius"], [node, "opacity"],
       [clips[i], "translateX"], [labels[i], "translateX"], [labels[i], "translateY"], [labels[i], "opacity"],
       [contents[i], "translateY"],
+      [contentClips[i], "translateX"], [contentPlanes[i], "translateX"],
     ] as const));
     paint();
   });
@@ -124,19 +126,22 @@ export default function TouchShell() {
     jump(pill, "scaleX", 1 - (nav.drag?.kind === "navigation" ? 0.12 * (1 - expansion) : 0));
     let windowsChanged = false;
     for (let i = 0; i < windows.length; i++) {
-      const c = nav.cards[i], b = i * 11, p = i * 7;
+      const c = nav.cards[i], b = i * 13, p = i * 8;
       const bounds = nav.paintBounds(i), visibility = bounds.opacity, offset = scrollers[i].offset();
       // Move a full-width scissor's right edge, then counter-translate its
       // child. The visible window stays in the same place without relayout.
       const clipX = bounds.right - layout().width;
+      const contentClipX = c.scale.value > 0 ?
+        clamp((bounds.contentRight - c.x.value) / c.scale.value, 0, layout().width) - layout().width : 0;
       if (windowPose[p] === c.x.value && windowPose[p + 1] === c.y.value &&
           windowPose[p + 2] === c.scale.value && windowPose[p + 3] === visibility &&
           windowPose[p + 4] === c.visibility.value && windowPose[p + 5] === offset &&
-          windowPose[p + 6] === clipX) continue;
+          windowPose[p + 6] === clipX && windowPose[p + 7] === contentClipX) continue;
       windowPose[p] = c.x.value; windowPose[p + 1] = c.y.value;
       windowPose[p + 2] = c.scale.value; windowPose[p + 3] = visibility;
       windowPose[p + 4] = c.visibility.value; windowPose[p + 5] = offset;
       windowPose[p + 6] = clipX;
+      windowPose[p + 7] = contentClipX;
       windowsChanged = true;
       batch.set(b, c.x.value - clipX); batch.set(b + 1, c.y.value);
       batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
@@ -146,6 +151,7 @@ export default function TouchShell() {
       batch.set(b + 7, c.x.value); batch.set(b + 8, c.y.value - 29);
       batch.set(b + 9, Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
       batch.set(b + 10, -offset);
+      batch.set(b + 11, contentClipX); batch.set(b + 12, -contentClipX);
     }
     if (windowsChanged) batch.commit();
     jump(detail, "translateX", layout().width * (1 - nav.detail.value));
@@ -207,6 +213,8 @@ export default function TouchShell() {
         style={{ width: layout().width, height: layout().height, zIndex: layer(i) }}>
         <View nodeRef={n => windows[i] = n!} debugName={`TouchWindow${i}`} class="absolute left-0 top-0 overflow-hidden"
           style={{ width: layout().width, height: layout().height, originX: -0.5, originY: -0.5, bgColor: APPS[i].background }}>
+          <View nodeRef={n => contentClips[i] = n!} debugName={`TouchContentClip${i}`} class="absolute inset-0 overflow-hidden">
+          <View nodeRef={n => contentPlanes[i] = n!} debugName={`TouchContentPlane${i}`} class="absolute inset-0">
           <View nodeRef={n => { if (i === 0) detailUnder = n!; }} class="absolute inset-0">
             <Text class="absolute left-[24] top-[47] text-xs font-bold tracking-wide" style={{ textColor: COLORS[i] }}>{APPS[i].subtitle}</Text>
             <Text class="absolute left-[22] top-[73] text-4xl font-bold text-[#27334b]">{name}</Text>
@@ -228,6 +236,8 @@ export default function TouchShell() {
             </View>
             <Text class="absolute text-sm text-[#7b8496]" style={{ insetL: layout().landscape ? layout().width - 295 : 25, insetT: layout().landscape ? 270 : 382 }}>Drag from the left edge to go back.</Text>
           </View> : null}
+          </View>
+          </View>
         </View>
       </View>
     </>)}

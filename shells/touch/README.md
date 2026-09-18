@@ -134,8 +134,9 @@ The same navigation model drives both devices. Window dimensions, icon hit
 targets, minimizing destinations, deck positions and content extents use the
 current viewport. Rotating cancels the previous contact before its release can
 commit an action, then retains open-window order, selected app and Home page.
-The E7 host presents at **30 Hz with two 60 Hz core ticks per frame**, and sends
-the wide touch format so coordinates beyond 511 reach the guest.
+The Shell package requests a **60 Hz host timer** and sends the wide touch
+format so coordinates beyond 511 reach the guest. The generic E7 host default
+remains 30 Hz; the Shell build passes `--frame-rate 60`.
 
 With the phone connected in Nokia Suite mode and CODA available:
 
@@ -203,6 +204,11 @@ GLES submission and presentation. Presentation includes GLES submission;
 these measurements do not separate GPU execution or display scanout. Replay
 starts at the native packed-input boundary, below the guest input dispatcher.
 Physical touch delivery still needs a manual check.
+The window painter translates fixed-size clipping containers, avoiding layout
+work when an occluding edge moves. It clips app content behind opaque windows
+while retaining each background's rounded fringe. A glyph-cell guard keeps
+visible scaled text outside the clipped quad boundary. Window poses remain
+live; clipping does not change navigation state or animation targets.
 The diagnostic runtime keeps the device awake for five minutes and saves the
 optional screenshot after measurement. Normal builds keep device sleep enabled.
 
