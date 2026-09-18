@@ -3,8 +3,12 @@
 `icons.py` authors sixteen Blender scenes from meshes, curves, text, materials,
 an orthographic camera and area lights. Each scene retains editable geometry.
 The tile uses the original 56-pixel footprint and 16-pixel circular corners.
-Its outer edge has no bevel rim. Symbols sit above the tile with beveled edges
-and cast shadows. All artwork is GPL-3.0-or-later.
+Blender renders an opaque plane beyond the tile boundary. The baker applies
+the corner mask and preserves the color under transparent pixels. This keeps
+GLES bilinear sampling from mixing transparent black into the visible edge.
+Symbols sit above the plane with beveled edges and cast shadows. Books uses
+curved paper meshes; Calendar, Calculator and Settings use fewer, larger parts.
+All artwork is GPL-3.0-or-later.
 
 **The app uses the committed 128×128 PNGs in `src/art/`.** Blender and a GPU are
 not required to build or run Pocket Shell. The two Home pages and dock use the
@@ -19,8 +23,10 @@ bun shells/touch/art/bake-icons.ts .pocket-build/touch-art
 bun shells/touch/art/wallpaper.ts
 ```
 
-The Blender command writes a `.blend` with one scene per icon and 384×384 PNG
-renders. The baker reduces these to 128×128 and writes a contact sheet with
+The Blender command writes a `.blend` with one scene per icon and 512×512 PNG
+renders. The baker averages each 4×4 pixel area into one 128×128 texel, applies
+a 16×16-sample circular-corner mask, and writes the RGBA bytes without a Canvas
+re-encode, which would discard color under zero alpha. It writes a contact sheet with
 both texture-size and 56-pixel previews. The scene, renders and contact sheet
 stay in ignored `.pocket-build/`; the shipped PNGs are product inputs consumed
 by `src/icons.tsx` and declared in `src/images.json`.

@@ -85,17 +85,52 @@ def text(body,x,y,size,z,mat):
     return o
 
 def base(color):
-    m=material('Glazed color '+color,color,.27,0,.32)
-    # Match the original 56px tile with 16px circular corners. Fill the bake
-    # footprint and omit the thin bevel rim, which aliases at E7 density.
-    half=2.06/2
-    radius=2.06*16/56
-    pts=[]
-    for cx,cy,a in [(half-radius,half-radius,0),(-half+radius,half-radius,90),(-half+radius,-half+radius,180),(half-radius,-half+radius,270)]:
-        for step in range(33):
-            t=math.radians(a+step*90/32)
-            pts.append((cx+radius*math.cos(t),cy+radius*math.sin(t)))
-    extrude('56px tile with 16px circular corners',pts,0,.15,m,0)
+    # Render color beyond the tile silhouette. The baker applies the circular
+    # mask once, preserving this RGB even under alpha zero for GL filtering.
+    m=material('Satin color '+color,color,.42,0,.12)
+    bpy.ops.mesh.primitive_plane_add(size=3,location=(0,0,.15))
+    o=bpy.context.object;o.name='Overscan tile color';o.data.materials.append(m)
+
+def gear(mat,z):
+    count=96;outer=[];inner=[]
+    for j in range(count):
+        a=j*math.tau/count;r=.60 if j%12 in (0,1,2,9,10,11) else .74
+        outer.append((r*math.cos(a),r*math.sin(a)))
+        inner.append((.285*math.cos(a),.285*math.sin(a)))
+    verts=[(x,y,h) for h in (z,z+.075) for loop in (outer,inner) for x,y in loop]
+    faces=[]
+    for j in range(count):
+        k=(j+1)%count
+        faces.extend([(j,k,k+2*count,j+2*count),
+                      (j+count,j+3*count,k+3*count,k+count),
+                      (j+2*count,k+2*count,k+3*count,j+3*count),
+                      (j,j+count,k+count,k)])
+    mesh=bpy.data.meshes.new('Eight-tooth gear');mesh.from_pydata(verts,[],faces);mesh.update()
+    o=bpy.data.objects.new('Single satin gear',mesh);bpy.context.collection.objects.link(o)
+    finish(o,mat,.026)
+
+def book_page(side,mat,z,under=False):
+    # A curved sheet rises from the gutter and bends toward the outer edge.
+    # Its top and bottom silhouette follow that bend instead of a trapezoid.
+    cols=48;rows=8;verts=[];faces=[]
+    for row in range(rows+1):
+        v=row/rows
+        for col in range(cols+1):
+            u=col/cols
+            x=side*(.025+(.68 if under else .66)*u)
+            y=-.53+v*1.00+.10*u+.055*math.sin(math.pi*u)
+            h=z+.145*math.sin(math.pi*u)+.045*u+.012*math.sin(math.pi*v)
+            verts.append((x,y,h))
+    for row in range(rows):
+        for col in range(cols):
+            a=row*(cols+1)+col;face=(a,a+1,a+cols+2,a+cols+1)
+            faces.append(face if side>0 else tuple(reversed(face)))
+    mesh=bpy.data.meshes.new('Curved paper');mesh.from_pydata(verts,[],faces);mesh.update()
+    o=bpy.data.objects.new(('Page block ' if under else 'Curved leaf ')+str(side),mesh)
+    bpy.context.collection.objects.link(o);o.data.materials.append(mat)
+    for p in mesh.polygons:p.use_smooth=True
+    s=o.modifiers.new('Paper thickness','SOLIDIFY');s.thickness=.022 if under else .012
+    b=o.modifiers.new('Paper edge','BEVEL');b.width=.006;b.segments=3
 
 def symbol(i):
     z=.20;w=M['white'];ink=M['ink'];red=M['red'];blue=M['blue'];gold=M['gold']
@@ -104,9 +139,12 @@ def symbol(i):
             rounded('Raised agenda line',.08-(.8-width)/2,.36-row*.34,width,.115,z,w,r=.055)
             disc('Agenda check',-.53,.36-row*.34,.06,z,w)
     elif i==1:
+        before=set(bpy.context.scene.objects)
         extrude('Connected music stems',[(-.28,-.26),(-.18,-.26),(-.18,.28),(.38,.40),(.38,-.12),(.48,-.12),(.48,.61),(-.28,.44)],z,.065,w)
-        o=disc('Lower note',-.39,-.32,.22,z,w);o.scale.y=.70
-        o=disc('Upper note',.27,-.18,.22,z,w);o.scale.y=.70
+        for name,x,y in [('Lower note',-.39,-.32),('Upper note',.27,-.18)]:
+            o=disc(name,0,0,.22,z,w);o.scale.y=.70;o.location=(x,y,0)
+        for o in set(bpy.context.scene.objects)-before:
+            o.location.x+=.065;o.location.y-=.11
     elif i==2:
         rounded('Map sheet',0,-.02,1.38,1.38,z,M['paper'],r=.10,depth=.025)
         rounded('Park west',-.39,.23,.46,.43,z+.03,material('Park green','7ccb8c'),r=.06,depth=.015)
@@ -144,9 +182,8 @@ def symbol(i):
         stroke('Lower fold',[(-.53,-.34),(0,.06),(.53,-.34)],z+.064,.024,crease)
         extrude('Envelope flap',[(-.61,.40),(.61,.40),(0,-.04)],z+.07,.025,w,.018)
     elif i==7:
-        rounded('Calendar header',0,.52,1.56,.40,z,red,r=.10,depth=.035)
-        text('SEP',0,.51,.27,z+.052,w);text('17',0,-.17,.90,z+.015,ink)
-        for x in [-.48,.48]:rounded('Calendar binding',x,.67,.085,.23,z+.08,M['silver'],r=.04)
+        rounded('Calendar red accent',0,.55,1.24,.18,z,red,r=.08,depth=.025)
+        text('17',0,-.12,1.18,z+.012,ink)
     elif i==8:
         ring('Clock rim',0,0,.66,.025,z,M['silver'])
         for j in range(12):
@@ -170,15 +207,7 @@ def symbol(i):
         rounded('Paper divider',.02,.09,1.02,.71,z+.07,w,r=.04,depth=.025)
         extrude('Folder front',[(-.66,-.46),(.62,-.46),(.70,.25),(-.58,.25)],z+.12,.07,material('Folder face','65cfff'),.035)
     elif i==11:
-        disc('Gear recess',0,0,.69,z,M['dark'])
-        pts=[]
-        for j in range(72):
-            a=j*math.tau/72;r=.62 if j%6 in [0,1,4,5] else .74
-            pts.append((r*math.cos(a),r*math.sin(a)))
-        extrude('Machined gear',pts,z+.055,.065,M['silver'],.02)
-        disc('Gear inner inset',0,0,.44,z+.14,M['dark'])
-        ring('Inner bevel',0,0,.41,.043,z+.17,M['silver'])
-        ring('Axle ring',0,0,.21,.06,z+.19,M['silver'])
+        gear(material('Satin alloy','e5eaf2',.42,.12,.08),z+.02)
     elif i==12:
         rounded('Camera housing',0,0,1.42,.93,z,M['dark'],r=.14)
         rounded('Viewfinder ridge',-.15,.47,.56,.25,z,M['dark'],r=.07)
@@ -195,22 +224,22 @@ def symbol(i):
             pts.append((16*math.sin(t)**3*.042,(13*math.cos(t)-5*math.cos(2*t)-2*math.cos(3*t)-math.cos(4*t))*.041+.06))
         extrude('Enamel heart',list(reversed(pts)),z,.09,red,.035)
     elif i==14:
-        extrude('Left open page',[(-.67,-.40),(-.07,-.53),(-.07,.44),(-.67,.56)],z,.065,w,.025)
-        extrude('Right open page',[(.07,-.53),(.67,-.40),(.67,.56),(.07,.44)],z,.065,M['paper'],.025)
-        stroke('Book spine',[(0,-.50),(0,.43)],z+.07,.042,M['paper'])
-        for y in [.18,-.02,-.22]:
-            stroke('Left ink',[(-.53,y+.06),(-.18,y)],z+.072,.018,M['line'])
-            stroke('Right ink',[(.18,y),(.53,y+.06)],z+.072,.018,M['line'])
+        for side in [-1,1]:
+            book_page(side,M['paper'],z+.005,under=True)
+            book_page(side,w,z+.047)
+        stroke('Book gutter',[(0,-.52),(0,.47)],z+.035,.028,M['paper'])
     elif i==15:
-        rounded('Calculator display',0,.48,1.20,.33,z,material('Display','a5c6c8',.3),r=.06)
-        text('128',.19,.48,.24,z+.065,ink)
-        for row in range(3):
-            for col in range(3):
-                x=(col-1)*.42;y=.08-row*.34
-                mat=gold if col==2 else (M['silver'] if row==0 else M['dark'])
-                rounded('Key',x,y,.32,.26,z,mat,r=.075)
-                if col==2:text(['+','-','='][row],x,y,.22,z+.06,ink)
-                else:disc('Key legend',x,y,.023,z+.06,w,.008)
+        key=material('Calculator ceramic','69758a',.42,0,.08)
+        for x,y,label in [(-.34,.34,'+'),(.34,.34,'-'),(-.34,-.34,'x'),(.34,-.34,'=')]:
+            rounded('Large '+label+' key',x,y,.57,.57,z,gold if label=='=' else key,r=.12,depth=.05)
+            m=ink if label=='=' else w;h=z+.078
+            if label in ('+','-'):stroke('Horizontal',[(x-.12,y),(x+.12,y)],h,.047,m)
+            if label=='+':stroke('Vertical',[(x,y-.12),(x,y+.12)],h,.047,m)
+            if label=='x':
+                stroke('Multiply ascending',[(x-.09,y-.09),(x+.09,y+.09)],h,.047,m)
+                stroke('Multiply descending',[(x-.09,y+.09),(x+.09,y-.09)],h,.047,m)
+            if label=='=':
+                for dy in [-.055,.055]:stroke('Equals',[(x-.12,y+dy),(x+.12,y+dy)],h,.047,m)
 
 def light(name, loc, energy, size):
     d=bpy.data.lights.new(name,'AREA');d.energy=energy;d.shape='DISK';d.size=size
@@ -222,7 +251,7 @@ for i,name in enumerate(NAMES):
     scene=bpy.data.scenes.new('Icon '+name);bpy.context.window.scene=scene
     scene.render.engine='CYCLES';scene.cycles.samples=48;scene.cycles.use_denoising=True
     scene.cycles.seed=7;scene.cycles.max_bounces=5
-    scene.render.resolution_x=384;scene.render.resolution_y=384;scene.render.resolution_percentage=100
+    scene.render.resolution_x=512;scene.render.resolution_y=512;scene.render.resolution_percentage=100
     scene.render.image_settings.file_format='PNG';scene.render.image_settings.color_mode='RGBA';scene.render.film_transparent=True
     scene.world=bpy.data.worlds.new('Studio '+name);scene.world.use_nodes=True
     scene.world.node_tree.nodes['Background'].inputs[0].default_value=(.72,.78,.9,1)
