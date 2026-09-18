@@ -123,51 +123,38 @@ export class Navigation {
     return index === this.foreground ? COUNT * 2 + 4 : Math.max(0, this.opened.indexOf(index)) * 2 + 2;
   }
 
-  paintVisibility(index: number): number {
-    const card = this.cards[index], opacity = clamp(card.visibility.value);
-    if (!opacity) return 0;
-    const left = Math.max(0, card.x.value), top = Math.max(0, card.y.value);
-    const right = Math.min(this.layout.width, card.x.value + this.layout.width * card.scale.value);
-    const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
-    if (right <= left || bottom <= top) return opacity;
-    const layer = this.layer(index);
-    for (let rank = 0; rank < this.opened.length; rank++) {
-      const i = this.opened[rank];
-      const other = this.cards[i];
-      if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
-      const x = other.x.value, y = other.y.value;
-      const r = x + this.layout.width * other.scale.value, b = y + this.layout.height * other.scale.value;
-      // Two rectangles inside the rounded card, inset one point for raster
-      // edges. Only fully covered windows skip painting; content stays mounted.
-      const inset = 28 * other.scale.value + 1;
-      if (left >= x + 1 && right <= r - 1 && top >= y + 1 && bottom <= b - 1 &&
-          ((left >= x + inset && right <= r - inset) || (top >= y + inset && bottom <= b - inset))) return 0;
-    }
-    return opacity;
-  }
+  paintVisibility(index: number): number { return this.paintBounds(index).opacity; }
 
-  paintRight(index: number): number {
-    const card = this.cards[index], width = this.layout.width;
+  paintRight(index: number): number { return this.paintBounds(index).right; }
+
+  // Resolve full and partial occlusion in one walk over the same opaque
+  // neighbors. The painter uses both results for each retained window.
+  paintBounds(index: number): { opacity: number; right: number } {
+    const card = this.cards[index], width = this.layout.width, height = this.layout.height;
+    const opacity = clamp(card.visibility.value);
+    if (!opacity) return { opacity: 0, right: width };
+    const left = Math.max(0, card.x.value), top = Math.max(0, card.y.value);
     const right = Math.min(width, card.x.value + width * card.scale.value);
-    const top = Math.max(0, card.y.value);
-    const bottom = Math.min(this.layout.height, card.y.value + this.layout.height * card.scale.value);
-    if (right <= 0 || card.x.value >= width || bottom <= top) return width;
-    let edge = width;
+    const bottom = Math.min(height, card.y.value + height * card.scale.value);
+    if (right <= left || bottom <= top) return { opacity, right: width };
     const layer = this.layer(index);
+    let edge = width;
     for (let rank = 0; rank < this.opened.length; rank++) {
-      const i = this.opened[rank];
-      const other = this.cards[i];
+      const i = this.opened[rank], other = this.cards[i];
       if ((i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2) <= layer || other.visibility.value < 1) continue;
       const x = other.x.value, y = other.y.value;
-      const r = x + width * other.scale.value, b = y + this.layout.height * other.scale.value;
+      const r = x + width * other.scale.value, b = y + height * other.scale.value;
       const inset = 28 * other.scale.value + 1;
-      // The next card covers this window's right side. Keep the rounded
-      // corner fringe and a raster guard; clip only inside its opaque body.
+      // Keep the rounded corner fringe and a one-pixel raster guard.
       if (right <= r - 1 && top >= y + 1 && bottom <= b - 1) {
-        edge = Math.min(edge, x + (top >= y + inset && bottom <= b - inset ? 1 : inset));
+        const insideY = top >= y + inset && bottom <= b - inset;
+        if (left >= x + 1 && ((left >= x + inset && right <= r - inset) || insideY)) {
+          return { opacity: 0, right: width };
+        }
+        edge = Math.min(edge, x + (insideY ? 1 : inset));
       }
     }
-    return clamp(Math.ceil(edge), 0, width);
+    return { opacity, right: clamp(Math.ceil(edge), 0, width) };
   }
 
   private targets(destination: Destination, keepDeck = false): void {
@@ -218,8 +205,8 @@ export class Navigation {
   }
 
   private paintStack(dt: number, settleOffsets: boolean): void {
-    this.opened.forEach(i => {
-      const card = this.cards[i], pose = this.stackPose(this.opened.indexOf(i) - this.deck.value), offset = this.offsets[i];
+    this.opened.forEach((i, rank) => {
+      const card = this.cards[i], pose = this.stackPose(rank - this.deck.value), offset = this.offsets[i];
       for (const key of ["x", "y", "scale"] as const) {
         if (settleOffsets) stepSpring(offset[key], dt);
         const derivative = key === "x" ? pose.dx : key === "y" ? pose.dy : pose.ds;

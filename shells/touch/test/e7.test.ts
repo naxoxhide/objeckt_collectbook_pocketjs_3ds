@@ -79,7 +79,8 @@ describe('Nokia E7 native viewport', () => {
       }
       idle();
       const nodes: number[] = [];
-      const collect = (node: any, out: number[]) => { if (node.n?.startsWith('TouchWindow')) out.push(node.i); node.k?.forEach((n: any) => collect(n, out)); };
+      const clips: number[] = [];
+      const collect = (node: any, out: number[]) => { if (node.n?.startsWith('TouchWindow')) out.push(node.i); if (node.n?.startsWith('TouchCardClip')) clips.push(node.i); node.k?.forEach((n: any) => collect(n, out)); };
       collect(world.getTree(), nodes); expect(nodes).toHaveLength(16);
       const l = shellLayout(width, height), cx = width / 2, bar = height - 14;
       glide(cx, bar, cx, bar - 41);
@@ -92,11 +93,11 @@ describe('Nokia E7 native viewport', () => {
       for (let i = 0; i < 9; i++) frame();
       frame(cx, bar);
       expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
-      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeLessThanOrEqual(0);
+      expect((writes.get(photo)!.get(PROP.translateX)! + writes.get(clips[5])!.get(PROP.translateX)!) + width * 0.64).toBeLessThanOrEqual(0);
       frame(cx, bar - 90);
       expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
-      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeGreaterThan(0);
-      expect(writes.get(photo)!.get(PROP.translateX)! + width * 0.64).toBeLessThan(48);
+      expect((writes.get(photo)!.get(PROP.translateX)! + writes.get(clips[5])!.get(PROP.translateX)!) + width * 0.64).toBeGreaterThan(0);
+      expect((writes.get(photo)!.get(PROP.translateX)! + writes.get(clips[5])!.get(PROP.translateX)!) + width * 0.64).toBeLessThan(48);
       frame(); idle();
       expect(writes.get(photo)!.get(PROP.scaleX)).toBe(0.64);
       tap(cx, height / 2); // Reopen the centered Photos card, then return Home.

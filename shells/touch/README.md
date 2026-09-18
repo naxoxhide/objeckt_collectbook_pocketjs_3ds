@@ -189,7 +189,12 @@ bun shells/touch/scripts/e7-perf.ts analyze .pocket-build/validation/touch/e7-pe
 ```
 
 The 30-second virtual-clock replay includes Home paging, app-to-Home minimization and the
-switcher. The summary excludes settled pauses from paging and minimization.
+switcher. It reports the first app-to-Home gesture apart from repeated gestures,
+so first-use resource uploads remain visible. The summary excludes settled pauses
+from paging and minimization. Pass `all-apps` after the width and height to both
+`make` and `analyze` to open and minimize every mock app across both Home pages.
+`deck-dismiss` covers browsing the deck and returning Home. The analyzer rejects
+touch counts that differ from the selected replay, including extra real contacts.
 Input advances with the framework's frame clock, preserving the same contact
 sequence when a frame is slow. FPS and stage durations use wall time; the
 device script allows 90 seconds for boot, warmup, collection and the screenshot.

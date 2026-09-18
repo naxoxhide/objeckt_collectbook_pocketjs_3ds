@@ -4,11 +4,13 @@
 import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { shellLayout } from '../src/layout.ts';
+import { APPS } from '../src/catalog.ts';
 
 const [command, file, widthArg = '360', heightArg = '640', scenario = 'navigation'] = process.argv.slice(2);
-if (!file || !['make', 'analyze'].includes(command) || !['navigation', 'deck-dismiss'].includes(scenario)) {
-  throw new Error('e7-perf.ts make <input.tsv> | analyze <trace.tsv> [width height [navigation|deck-dismiss]]');
+if (!file || !['make', 'analyze'].includes(command) || !['navigation', 'deck-dismiss', 'all-apps'].includes(scenario)) {
+  throw new Error('e7-perf.ts make <input.tsv> | analyze <trace.tsv> [width height [navigation|deck-dismiss|all-apps]]');
 }
+const appTimes = APPS.map((app, i) => 4000 + i * 1400 + (app.page === 1 ? 1000 : 0));
 if (command === 'make') {
   const width = Number(widthArg), height = Number(heightArg);
   if (![[360, 640], [640, 360]].some(([w, h]) => w === width && h === height)) throw new Error('Expected an E7 viewport');
@@ -24,7 +26,13 @@ if (command === 'make') {
   };
   const bar = height - 14, cx = width / 2;
   swipe(2000, cx, bar, cx, bar - 100);
-  if (scenario === 'deck-dismiss') {
+  if (scenario === 'all-apps') {
+    APPS.forEach((app, i) => {
+      if (app.page === 1 && APPS[i - 1]?.page !== 1) swipe(appTimes[i] - 1000, width - 40, height / 2, 40, height / 2);
+      tap(appTimes[i], i);
+      swipe(appTimes[i] + 650, cx, bar, cx, bar - 100, 180);
+    });
+  } else if (scenario === 'deck-dismiss') {
     const y = Math.min(300, height / 2);
     swipe(4000, cx, bar, cx, bar - 100);
     for (const at of [6500, 8000, 9500, 11000]) swipe(at, 100, y, width - 60, y);
@@ -60,18 +68,27 @@ if (command === 'make') {
   const rows = lines.filter(l => /^\d+\t/.test(l)).map(l => Object.fromEntries(l.split('\t').map((v, i) => [keys[i], Number(v)])));
   const at = (r: Record<string, number>) => r.replay_ms ?? r.elapsed_ms;
   if (!rows.length || at(rows.at(-1)!) < 29900) throw new Error('Incomplete 30 second workload');
-  if (scenario === 'deck-dismiss') {
-    const intervals = [2000, 4000, 6500, 8000, 9500, 11000, 12500, 17500, 19500].map(t => [t, t + 375]);
-    intervals.push([14000, 14150], [21000, 21150]);
+  if (Number(metadata.replay_points) > 0) {
+    const intervals = scenario === 'all-apps' ?
+      [[2000, 2375], [appTimes[APPS.findIndex(app => app.page === 1)] - 1000, appTimes[APPS.findIndex(app => app.page === 1)] - 625], ...appTimes.flatMap(t => [[t, t + 150], [t + 650, t + 845]])] : scenario === 'deck-dismiss' ?
+      [...[2000, 4000, 6500, 8000, 9500, 11000, 12500, 17500, 19500].map(t => [t, t + 375]),
+        [14000, 14150], [21000, 21150]] :
+      [[2000, 2375], ...[4000, 6000, 8000, 10000, 12000].map(t => [t, t + 375]),
+        ...[14000, 16000, 18000, 20000, 22000].flatMap(t => [[t, t + 150], [t + 800, t + 1175]]),
+        [25000, 25375], [26800, 27175], [28200, 28575]];
     // Real touches can interleave with injected input. Reject interference
-    // before either measured exit, including contacts during startup/idle.
-    const interference = rows.find(r => at(r) < 21650 && r.touches !== Number(intervals.some(([a, b]) => at(r) >= a && at(r) < b)));
+    // throughout the measured phases, including contacts during startup/idle.
+    const until = scenario === 'deck-dismiss' ? 21650 : 29800;
+    const interference = rows.find(r => at(r) < until && r.touches !== Number(intervals.some(([a, b]) => at(r) >= a && at(r) < b)));
     if (interference) throw new Error(`Replay touch mismatch at ${at(interference)} ms; leave the screen untouched during measurement`);
   }
-  const phases = scenario === 'deck-dismiss' ?
+  const phases: readonly (readonly [string, number, number])[] = scenario === 'all-apps' ?
+    APPS.flatMap((app, i) => [[`${app.name}-open`, appTimes[i] + 150, appTimes[i] + 650],
+      [`${app.name}-home`, appTimes[i] + 650, appTimes[i] + 1300]] as const) : scenario === 'deck-dismiss' ?
     [['browsed-deck', 13000, 14000], ['dismiss-start', 14150, 14350], ['dismiss', 14150, 14650],
       ['dismiss-again', 21150, 21650]] as const :
-    [['idle-app', 500, 1950], ['home-pages', 4000, 13500], ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
+    [['idle-app', 500, 1950], ['first-app-home', 2000, 3650], ['home-pages', 4000, 13500],
+      ['app-home', 14000, 23900], ['switcher', 25000, 29800]] as const;
   const metrics = phases.map(([name, from, to]) => {
     const part = rows.filter(r => at(r) >= from && at(r) < to &&
       // Exclude the first texture-upload interval if it crosses into idle.
@@ -83,7 +100,7 @@ if (command === 'make') {
       const a = part.map(r => r[key]).sort((a, b) => a - b);
       return { mean: a.reduce((a, b) => a + b, 0) / a.length, p50: a[Math.floor((a.length - 1) * .5)], p95: a[Math.ceil((a.length - 1) * .95)], max: a.at(-1) };
     };
-    const render = Object.fromEntries(['scene_ms', 'resources_ms', 'geometry_ms', 'upload_ms', 'submit_ms', 'batches', 'vertices']
+    const render = Object.fromEntries(['scene_ms', 'resources_ms', 'geometry_ms', 'upload_ms', 'submit_ms', 'error_ms', 'hit_ms', 'batches', 'vertices']
       .filter(key => keys.includes(key)).map(key => [key, stats(key)]));
     return { name, frames: part.length, fps: 1000 / stats('delta_ms').mean, delta: stats('delta_ms'), js: stats('js_ms'), tick: stats('tick_ms'), draw: stats('draw_ms'), present: stats('present_ms'), render };
   });

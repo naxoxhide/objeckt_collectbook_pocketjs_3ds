@@ -48,15 +48,22 @@ describe("Touch shell through the mounted PocketJS guest", () => {
     expect(nodes).toHaveLength(APPS.length);
     for (const { name } of APPS) expect(treeHasText(initialTree, name)).toBe(true);
     expect(treeHasText(initialTree, "Today")).toBe(true);
-    const prop = (index: number, property: number) => writes.get(nodes[index])!.get(property)!;
+    const clips = nodes.map((_, i) => named.get(`TouchCardClip${i}`)!);
+    const prop = (index: number, property: number) => writes.get(nodes[index])!.get(property)! +
+      (property === PROP.translateX ? writes.get(clips[index])!.get(PROP.translateX)! : 0);
     function checkCullingPixels() {
       const saved = nodes.flatMap((node, i) => [node, PROP.opacity, prop(i, PROP.opacity)]);
       const clipped = world.render().slice();
       host!.setPropBatch(new Float64Array(nodes.flatMap(node => [node, PROP.opacity, 1])).buffer);
       expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
       host!.setPropBatch(new Float64Array(saved).buffer);
-      const clips = nodes.map((_, i) => named.get(`TouchCardClip${i}`)!);
-      const savedClips = clips.flatMap(node => [node, PROP.width, writes.get(node)!.get(PROP.width)!]);
+      const savedClips = clips.flatMap((node, i) => [node, PROP.translateX, writes.get(node)!.get(PROP.translateX)!,
+        nodes[i], PROP.translateX, writes.get(nodes[i])!.get(PROP.translateX)!]);
+      // The translated scissor must match the old width-based clip exactly.
+      const oldClips = clips.flatMap((node, i) => [node, PROP.translateX, 0,
+        node, PROP.width, 320 + writes.get(node)!.get(PROP.translateX)!, nodes[i], PROP.translateX, prop(i, PROP.translateX)]);
+      host!.setPropBatch(new Float64Array(oldClips).buffer);
+      expect(Bun.hash(world.render())).toBe(Bun.hash(clipped));
       host!.setPropBatch(new Float64Array(clips.flatMap(node => [node, PROP.width, 320])).buffer);
       const reference = world.render();
       // Clipping a rotated triangle can quantize its edge one pixel away.

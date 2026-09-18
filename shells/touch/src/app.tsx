@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { createSignal, onMount } from "solid-js";
+import { createMemo, createSignal, onMount } from "solid-js";
 import { View, Text, Image, type NodeMirror } from "@pocketjs/framework/components";
 import { createJumpBatch, jump as applyJump, type JumpBatch } from "@pocketjs/framework/animation";
 import { createGesture, type GestureContact } from "@pocketjs/framework/gesture";
@@ -21,8 +21,10 @@ export default function TouchShell() {
   const nav = new Navigation(viewport?.w ?? 320, viewport?.h ?? 480);
   const [layout, setLayout] = createSignal(nav.layout);
   const [stack, setStack] = createSignal("");
-  const layer = (index: number) => { stack(); return nav.layer(index); };
-  const homeLayer = () => { stack(); return nav.coveringHome ? CHROME_LAYER - 1 : 0; };
+  // Only reapply a window's styles when its actual paint rank changes.
+  const layers = APPS.map((_, index) => createMemo(() => { stack(); return nav.layer(index); }));
+  const layer = (index: number) => layers[index]();
+  const homeLayer = createMemo(() => { stack(); return nav.coveringHome ? CHROME_LAYER - 1 : 0; });
   const windows: NodeMirror[] = [], clips: NodeMirror[] = [], contents: NodeMirror[] = [], labels: NodeMirror[] = [];
   const pages: NodeMirror[] = [], dots: NodeMirror[] = [];
   let wallpaper!: NodeMirror, homeCover!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
@@ -31,7 +33,7 @@ export default function TouchShell() {
   // These properties are owned by this painter, with no native animations.
   // Keep mounted content, but avoid JS/native calls for identical poses.
   const painted = new WeakMap<NodeMirror, Record<string, number>>();
-  const windowPose = new Float64Array(APPS.length * 6).fill(NaN);
+  const windowPose = new Float64Array(APPS.length * 7).fill(NaN);
   function jump(node: NodeMirror, prop: Parameters<typeof applyJump>[1], value: number) {
     let previous = painted.get(node);
     if (!previous) { previous = {}; painted.set(node, previous); }
@@ -79,8 +81,10 @@ export default function TouchShell() {
   });
 
   onMount(() => {
-    batch = createJumpBatch(windows.flatMap(node => [
+    batch = createJumpBatch(windows.flatMap((node, i) => [
       [node, "translateX"], [node, "translateY"], [node, "scaleX"], [node, "scaleY"], [node, "radius"], [node, "opacity"],
+      [clips[i], "translateX"], [labels[i], "translateX"], [labels[i], "translateY"], [labels[i], "opacity"],
+      [contents[i], "translateY"],
     ] as const));
     paint();
   });
@@ -120,24 +124,28 @@ export default function TouchShell() {
     jump(pill, "scaleX", 1 - (nav.drag?.kind === "navigation" ? 0.12 * (1 - expansion) : 0));
     let windowsChanged = false;
     for (let i = 0; i < windows.length; i++) {
-      const c = nav.cards[i], b = i * 6;
-      const visibility = nav.paintVisibility(i), offset = scrollers[i].offset();
-      jump(clips[i], "width", visibility ? nav.paintRight(i) : layout().width);
-      if (windowPose[b] === c.x.value && windowPose[b + 1] === c.y.value &&
-          windowPose[b + 2] === c.scale.value && windowPose[b + 3] === visibility &&
-          windowPose[b + 4] === c.visibility.value && windowPose[b + 5] === offset) continue;
-      windowPose[b] = c.x.value; windowPose[b + 1] = c.y.value;
-      windowPose[b + 2] = c.scale.value; windowPose[b + 3] = visibility;
-      windowPose[b + 4] = c.visibility.value; windowPose[b + 5] = offset;
+      const c = nav.cards[i], b = i * 11, p = i * 7;
+      const bounds = nav.paintBounds(i), visibility = bounds.opacity, offset = scrollers[i].offset();
+      // Move a full-width scissor's right edge, then counter-translate its
+      // child. The visible window stays in the same place without relayout.
+      const clipX = bounds.right - layout().width;
+      if (windowPose[p] === c.x.value && windowPose[p + 1] === c.y.value &&
+          windowPose[p + 2] === c.scale.value && windowPose[p + 3] === visibility &&
+          windowPose[p + 4] === c.visibility.value && windowPose[p + 5] === offset &&
+          windowPose[p + 6] === clipX) continue;
+      windowPose[p] = c.x.value; windowPose[p + 1] = c.y.value;
+      windowPose[p + 2] = c.scale.value; windowPose[p + 3] = visibility;
+      windowPose[p + 4] = c.visibility.value; windowPose[p + 5] = offset;
+      windowPose[p + 6] = clipX;
       windowsChanged = true;
-      batch.set(b, c.x.value); batch.set(b + 1, c.y.value);
+      batch.set(b, c.x.value - clipX); batch.set(b + 1, c.y.value);
       batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
       batch.set(b + 4, 28 * (1 - smooth(0.72, 1, c.scale.value)));
       batch.set(b + 5, visibility);
-      jump(contents[i], "translateY", -offset);
-      jump(labels[i], "translateX", c.x.value);
-      jump(labels[i], "translateY", c.y.value - 29);
-      jump(labels[i], "opacity", Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
+      batch.set(b + 6, clipX);
+      batch.set(b + 7, c.x.value); batch.set(b + 8, c.y.value - 29);
+      batch.set(b + 9, Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
+      batch.set(b + 10, -offset);
     }
     if (windowsChanged) batch.commit();
     jump(detail, "translateX", layout().width * (1 - nav.detail.value));
