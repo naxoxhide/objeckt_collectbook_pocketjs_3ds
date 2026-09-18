@@ -170,11 +170,16 @@ The painter retains all app nodes and skips unchanged property writes. Settled
 springs stop before evaluating their exponential. Neither optimization changes
 contact positions, spring targets, or animation timing.
 
-The native profiling workflow requires a PocketJS build with `--perf-trace`
-support; the current submodule pin predates that option. Build against the
-upstream profiling checkout, with this shell as its `--project-root`, and
-install the resulting SIS before running the commands below. Use matching
-viewport dimensions and keep the phone in that orientation during the run.
+Build the diagnostic SIS with the pinned PocketJS toolchain and install it
+before profiling:
+
+```sh
+bun vendor/pocketjs/tools/symbian.ts build app --manifest shells/touch/pocket.json \
+  --project-root shells/touch --outdir .pocket-build/validation/touch/e7-performance \
+  --sis-version 0.3.63 --frame-rate 60 --perf-trace
+```
+
+Use matching viewport dimensions and keep the phone in that orientation during the run.
 Replay builds fix orientation to the manifest's initial viewport. The analyzer
 rejects inactive-window samples and mismatched viewport dimensions; pass the
 same width and height to `make` and `analyze` for landscape workloads.
