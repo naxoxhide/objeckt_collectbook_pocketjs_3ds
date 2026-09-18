@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { APPS } from './catalog.ts';
 
+export const WINDOW_RADIUS = 28;
+
 /** Logical coordinates shared by drawing, hit testing and window springs. */
 export function shellLayout(width = 320, height = 480) {
   const landscape = width > height;

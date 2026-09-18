@@ -2,7 +2,7 @@
 // Destinations choose spring targets. They never replace a scene or reset its
 // presentation. A down edge catches the displayed pose, including mid-spring.
 import { APPS, HOME_PAGES, ICON_SIZE } from "./catalog.ts";
-import { shellLayout, type ShellLayout } from "./layout.ts";
+import { shellLayout, WINDOW_RADIUS, type ShellLayout } from "./layout.ts";
 
 export const WIDTH = 320;
 export const HEIGHT = 480;
@@ -22,6 +22,7 @@ export type DragKind = "navigation" | "reveal" | "pager" | "content" | "detail" 
 export interface Contact { id: number; x: number; y: number; vx: number; vy: number }
 export interface Axis { value: number; velocity: number; target: number }
 export interface Card { x: Axis; y: Axis; scale: Axis; visibility: Axis }
+export interface PaintBounds { opacity: number; right: number; contentRight: number }
 interface Occluder { layer: number; left: number; top: number; right: number; bottom: number; inset: number }
 const axis = (value: number): Axis => ({ value, velocity: 0, target: value });
 export const clamp = (v: number, lo = 0, hi = 1): number => Math.max(lo, Math.min(hi, v));
@@ -150,20 +151,16 @@ export class Navigation {
       const bounds = this.occluderPool[count];
       bounds.layer = i === this.foreground ? COUNT * 2 + 4 : rank * 2 + 2;
       bounds.left = x; bounds.top = y; bounds.right = right; bounds.bottom = bottom;
-      bounds.inset = 28 * scale + 1;
+      bounds.inset = WINDOW_RADIUS * scale + 1;
       this.occluders[count++] = bounds;
     }
     this.occluders.length = count;
     return this.occluders;
   }
 
-  paintVisibility(index: number): number { return this.paintBounds(index).opacity; }
-
-  paintRight(index: number): number { return this.paintBounds(index).right; }
-
   // Resolve full and partial occlusion in one walk over the same opaque
   // neighbors. The painter uses both results for each retained window.
-  paintBounds(index: number, occluders = this.paintOccluders()): { opacity: number; right: number; contentRight: number } {
+  paintBounds(index: number, occluders = this.paintOccluders()): PaintBounds {
     const card = this.cards[index], width = this.layout.width, height = this.layout.height;
     const opacity = clamp(card.visibility.value);
     if (!opacity) return { opacity: 0, right: width, contentRight: width };

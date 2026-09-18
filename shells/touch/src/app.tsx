@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { createMemo, createSignal, onMount } from "solid-js";
 import { View, Text, Image, type NodeMirror } from "@pocketjs/framework/components";
-import { createJumpBatch, jump as applyJump, type JumpBatch } from "@pocketjs/framework/animation";
+import { jump as applyJump } from "@pocketjs/framework/animation";
 import { createGesture, type GestureContact } from "@pocketjs/framework/gesture";
 import { createScroller } from "@pocketjs/framework/kinetics";
 import { onFrame } from "@pocketjs/framework/lifecycle";
@@ -11,6 +11,7 @@ import { Navigation, clamp, smooth } from "./navigation.ts";
 import { APPS, HOME_PAGES } from "./catalog.ts";
 import { AppMockup } from "./mockups.tsx";
 import { Icon } from "./icons.tsx";
+import { createWindowPainter } from "./window-painter.ts";
 
 const NAMES = APPS.map(app => app.name);
 const COLORS = APPS.map(app => app.color);
@@ -30,11 +31,10 @@ export default function TouchShell() {
   const pages: NodeMirror[] = [], dots: NodeMirror[] = [];
   let wallpaper!: NodeMirror, homeCover!: NodeMirror, home!: NodeMirror, overview!: NodeMirror, empty!: NodeMirror;
   let detail!: NodeMirror, detailUnder!: NodeMirror, pill!: NodeMirror;
-  let batch: JumpBatch | undefined;
+  let windowPainter: ReturnType<typeof createWindowPainter> | undefined;
   // These properties are owned by this painter, with no native animations.
   // Keep mounted content, but avoid JS/native calls for identical poses.
   const painted = new WeakMap<NodeMirror, Record<string, number>>();
-  const windowPose = new Float64Array(APPS.length * 8).fill(NaN);
   function jump(node: NodeMirror, prop: Parameters<typeof applyJump>[1], value: number) {
     let previous = painted.get(node);
     if (!previous) { previous = {}; painted.set(node, previous); }
@@ -82,17 +82,15 @@ export default function TouchShell() {
   });
 
   onMount(() => {
-    batch = createJumpBatch(windows.flatMap((node, i) => [
-      [node, "translateX"], [node, "translateY"], [node, "scaleX"], [node, "scaleY"], [node, "radius"], [node, "opacity"],
-      [clips[i], "translateX"], [labels[i], "translateX"], [labels[i], "translateY"], [labels[i], "opacity"],
-      [contents[i], "translateY"],
-      [contentClips[i], "translateX"], [contentPlanes[i], "translateX"],
-    ] as const));
+    windowPainter = createWindowPainter(windows.map((window, i) => ({
+      window, clip: clips[i], label: labels[i], content: contents[i],
+      contentClip: contentClips[i], contentPlane: contentPlanes[i],
+    })));
     paint();
   });
 
   function paint() {
-    if (!batch) return;
+    if (!windowPainter) return;
     setStack(`${nav.foreground}/${nav.opened.join(",")}/${nav.coveringHome}`);
     const active = nav.cards[nav.selected];
     const scene = nav.scene.value;
@@ -124,48 +122,11 @@ export default function TouchShell() {
     jump(pill, "bgColor", (0xff000000 | (Math.round(255 - 184 * ink) << 16) |
       (Math.round(255 - 206 * ink) << 8) | Math.round(255 - 217 * ink)) >>> 0);
     jump(pill, "scaleX", 1 - (nav.drag?.kind === "navigation" ? 0.12 * (1 - expansion) : 0));
-    let windowsChanged = false;
     const occluders = nav.paintOccluders();
     for (let i = 0; i < windows.length; i++) {
-      const c = nav.cards[i], b = i * 13, p = i * 8;
-      const bounds = nav.paintBounds(i, occluders), visibility = bounds.opacity, offset = scrollers[i].offset();
-      // Move a full-width scissor's right edge, then counter-translate its
-      // child. The visible window stays in the same place without relayout.
-      const clipX = bounds.right - layout().width;
-      const contentClipX = c.scale.value > 0 ?
-        clamp((bounds.contentRight - c.x.value) / c.scale.value, 0, layout().width) - layout().width : 0;
-      if (windowPose[p] === c.x.value && windowPose[p + 1] === c.y.value &&
-          windowPose[p + 2] === c.scale.value && windowPose[p + 3] === visibility &&
-          windowPose[p + 4] === c.visibility.value && windowPose[p + 5] === offset &&
-          windowPose[p + 6] === clipX && windowPose[p + 7] === contentClipX) continue;
-      windowsChanged = true;
-      // Each entry retains its value in the compiled batch. Most moving
-      // windows only change x; avoid re-encoding eleven unchanged values.
-      if (windowPose[p] !== c.x.value || windowPose[p + 6] !== clipX) batch.set(b, c.x.value - clipX);
-      if (windowPose[p + 1] !== c.y.value) {
-        batch.set(b + 1, c.y.value); batch.set(b + 8, c.y.value - 29);
-      }
-      if (windowPose[p + 2] !== c.scale.value) {
-        batch.set(b + 2, c.scale.value); batch.set(b + 3, c.scale.value);
-        if (!(windowPose[p + 2] <= 0.72 && c.scale.value <= 0.72))
-          batch.set(b + 4, 28 * (1 - smooth(0.72, 1, c.scale.value)));
-      }
-      if (windowPose[p + 3] !== visibility) batch.set(b + 5, visibility);
-      if (windowPose[p + 6] !== clipX) batch.set(b + 6, clipX);
-      if (windowPose[p] !== c.x.value) batch.set(b + 7, c.x.value);
-      if (windowPose[p + 4] !== c.visibility.value ||
-          (windowPose[p + 2] !== c.scale.value && !(windowPose[p + 2] <= 0.72 && c.scale.value <= 0.72)))
-        batch.set(b + 9, Math.max(0, Math.min(1, c.visibility.value)) * (1 - smooth(0.72, 0.96, c.scale.value)));
-      if (windowPose[p + 5] !== offset) batch.set(b + 10, -offset);
-      if (windowPose[p + 7] !== contentClipX) {
-        batch.set(b + 11, contentClipX); batch.set(b + 12, -contentClipX);
-      }
-      windowPose[p] = c.x.value; windowPose[p + 1] = c.y.value;
-      windowPose[p + 2] = c.scale.value; windowPose[p + 3] = visibility;
-      windowPose[p + 4] = c.visibility.value; windowPose[p + 5] = offset;
-      windowPose[p + 6] = clipX; windowPose[p + 7] = contentClipX;
+      windowPainter.paint(i, nav.cards[i], nav.paintBounds(i, occluders), layout().width, scrollers[i].offset());
     }
-    if (windowsChanged) batch.commit();
+    windowPainter.commit();
     jump(detail, "translateX", layout().width * (1 - nav.detail.value));
     jump(detail, "opacity", smooth(0, 0.01, nav.detail.value));
     jump(detailUnder, "translateX", -78 * nav.detail.value);

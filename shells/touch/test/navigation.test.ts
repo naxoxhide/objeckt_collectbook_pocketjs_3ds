@@ -105,19 +105,19 @@ describe("Touch shell continuous navigation", () => {
   test("opaque stacked cards skip fully covered windows but never a visible strip or a translucent cover", () => {
     const n = appNavigation(); lift(n, 16); settle(n);
     expect(n.opened.map(i => n.cards[i].visibility.value)).toEqual(Array(COUNT).fill(1));
-    expect(n.cards.slice(0, 6).map((_, i) => n.paintVisibility(i))).toEqual([1, 1, 0, 0, 0, 0]);
-    expect(n.paintRight(1)).toBeLessThan(100);
+    expect(n.cards.slice(0, 6).map((_, i) => n.paintBounds(i).opacity)).toEqual([1, 1, 0, 0, 0, 0]);
+    expect(n.paintBounds(1).right).toBeLessThan(100);
     n.cards[0].visibility.value = 0.5;
-    expect(n.paintRight(1)).toBe(320); // A translucent card cannot hide content.
+    expect(n.paintBounds(1).right).toBe(320); // A translucent card cannot hide content.
     n.cards[0].visibility.value = 1;
     n.cards[0].y.value += 100;
-    expect(n.paintRight(1)).toBe(320); // Dismissal exposes the top of its neighbor.
+    expect(n.paintBounds(1).right).toBe(320); // Dismissal exposes the top of its neighbor.
     n.cards[0].y.value -= 100;
     n.cards[1].visibility.value = 0.5;
-    expect(n.paintVisibility(2)).toBe(1);
+    expect(n.paintBounds(2).opacity).toBe(1);
     n.cards[1].visibility.value = 1;
     n.down(contact(160, 250)); n.move(contact(250, 250), 1 / 60);
-    expect(n.paintVisibility(2)).toBe(1); // Paging exposes the next older strip.
+    expect(n.paintBounds(2).opacity).toBe(1); // Paging exposes the next older strip.
   });
   test("desktop icons open distinct retained windows and move the chosen app to the newest end", () => {
     const n = appNavigation();

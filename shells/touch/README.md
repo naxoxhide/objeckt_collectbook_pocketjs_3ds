@@ -187,7 +187,8 @@ bun vendor/pocketjs/tools/symbian.ts build app --manifest shells/touch/pocket.js
 
 Use matching viewport dimensions and keep the phone in that orientation during the run.
 Replay builds fix orientation to the manifest's initial viewport. The analyzer
-rejects inactive-window samples and mismatched viewport dimensions; pass the
+rejects inactive-window samples, mismatched viewport dimensions, missing replay,
+non-finite timing values and incomplete or unordered frame rows; pass the
 same width and height to `make` and `analyze` for landscape workloads.
 
 ```sh
@@ -215,7 +216,9 @@ GLES submission and presentation. Presentation includes GLES submission;
 these measurements do not separate GPU execution or display scanout. Replay
 starts at the native packed-input boundary, below the guest input dispatcher.
 Physical touch delivery still needs a manual check.
-The window painter translates fixed-size clipping containers, avoiding layout
+`src/window-painter.ts` owns named batch bindings and retained paint values;
+`Navigation` owns gesture state, poses and occlusion bounds. The painter
+translates fixed-size clipping containers, avoiding layout
 work when an occluding edge moves. It clips app content behind opaque windows
 while retaining each background's rounded fringe. The pinned renderer retains
 scaled glyph sampling under the moving scissor. Window poses remain live;
