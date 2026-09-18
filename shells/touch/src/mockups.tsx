@@ -1,36 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { View, Text } from "@pocketjs/framework/components";
-import { APPS } from "./catalog.ts";
-const COLORS = APPS.map(app => app.color);
-
-export function Icon(props: { index: number }) {
-  if (props.index >= 6) return <ExtraIcon index={props.index} />;
-  return <View class="absolute w-[56] h-[56] rounded-[16]" style={{ bgColor: COLORS[props.index] }}>
-    {props.index === 0 ? <>
-      <View class="absolute left-[14] top-[15] w-[28] h-[4] rounded bg-white" />
-      <View class="absolute left-[14] top-[25] w-[21] h-[4] rounded bg-white" />
-      <View class="absolute left-[14] top-[35] w-[25] h-[4] rounded bg-white" />
-    </> : props.index === 1 ? <>
-      <View class="absolute left-[27] top-[12] w-[4] h-[29] rounded bg-white" />
-      <View class="absolute left-[27] top-[12] w-[14] h-[5] rounded bg-white" style={{ rotate: -14 }} />
-      <View class="absolute left-[15] top-[32] w-[16] h-[12] rounded-full bg-white" />
-    </> : props.index === 2 ? <>
-      <View class="absolute left-[13] top-[13] w-[30] h-[30] rounded-full border-[3] border-white" />
-      <View class="absolute left-[24] top-[20] w-[8] h-[16] rounded bg-white" style={{ rotate: 32 }} />
-    </> : props.index === 3 ? <>
-      <View class="absolute left-[11] top-[10] w-[23] h-[23] rounded-full bg-[#ffe0a0]" />
-      <View class="absolute left-[13] top-[27] w-[34] h-[16] rounded-full bg-white" />
-      <View class="absolute left-[25] top-[20] w-[18] h-[20] rounded-full bg-white" />
-    </> : props.index === 4 ? <>
-      <View class="absolute left-[13] top-[11] w-[31] h-[35] rounded bg-[#fff9df]" />
-      {[21, 28, 35].map(y => <View class="absolute left-[19] w-[19] h-[2] bg-[#d4a444]" style={{ insetT: y }} />)}
-    </> : <>
-      <View class="absolute left-[11] top-[13] w-[34] h-[30] rounded bg-[#ffe9ef]" />
-      <View class="absolute left-[30] top-[18] w-[8] h-[8] rounded-full bg-[#edba77]" />
-      <View class="absolute left-[17] top-[28] w-[21] h-[12] rounded bg-[#ac85c2]" />
-    </>}
-  </View>;
-}
 
 function Today() {
   return <>
@@ -150,52 +119,6 @@ function Photos() {
       <Text class="absolute left-[12] bottom-[11] text-xs font-bold text-white">{["Riverside", "Open sky", "Warm light", "After hours"][i]}</Text>
     </View>)}
   </>;
-}
-
-function ExtraIcon(props: { index: number }) {
-  const i = props.index;
-  return <View class="absolute w-[56] h-[56] rounded-[16]" style={{ bgColor: COLORS[i] }}>
-    {i === 6 ? <>
-      <View class="absolute left-[10] top-[17] w-[36] h-[25] rounded bg-white" />
-      <View class="absolute left-[12] top-[22] w-[18] h-[2] bg-[#548fce]" style={{ rotate: 34 }} />
-      <View class="absolute left-[26] top-[22] w-[18] h-[2] bg-[#548fce]" style={{ rotate: -34 }} />
-    </> : i === 7 ? <>
-      <View class="absolute left-[10] top-[10] w-[36] h-[37] rounded bg-[#fff8f4]" />
-      <View class="absolute left-[10] top-[10] w-[36] h-[9] rounded bg-[#b85751]" />
-      <Text class="absolute left-[13] top-[21] w-[30] text-center text-xl font-bold text-[#af5149]">17</Text>
-    </> : i === 8 ? <>
-      <View class="absolute left-[9] top-[9] w-[38] h-[38] rounded-full bg-[#f4f3f8]" />
-      <View class="absolute left-[26] top-[16] w-[3] h-[15] rounded bg-[#555c76]" />
-      <View class="absolute left-[26] top-[27] w-[13] h-[3] rounded bg-[#555c76]" />
-      <View class="absolute left-[26] top-[25] w-[3] h-[13] rounded bg-[#de796b]" style={{ rotate: 28 }} />
-    </> : i === 9 ? <>
-      <View class="absolute left-[9] top-[9] w-[38] h-[38] rounded-full border-[2] border-white" />
-      <View class="absolute left-[25] top-[14] w-[6] h-[28] rounded bg-white" style={{ rotate: 35 }} />
-      <View class="absolute left-[27] top-[15] w-[6] h-[13] rounded bg-[#ed8b76]" style={{ rotate: 35 }} />
-    </> : i === 10 ? <>
-      <View class="absolute left-[10] top-[13] w-[18] h-[12] rounded bg-[#e0eaff]" />
-      <View class="absolute left-[10] top-[20] w-[36] h-[24] rounded bg-white" />
-    </> : i === 11 ? <>
-      {[0, 45, 90, 135].map(rotate => <View class="absolute left-[25] top-[9] w-[6] h-[38] rounded bg-[#f3f4f8]" style={{ rotate }} />)}
-      <View class="absolute left-[15] top-[15] w-[26] h-[26] rounded-full bg-[#f3f4f8]" />
-      <View class="absolute left-[21] top-[21] w-[14] h-[14] rounded-full" style={{ bgColor: COLORS[i] }} />
-    </> : i === 12 ? <>
-      <View class="absolute left-[10] top-[18] w-[36] h-[25] rounded bg-[#e4ece6]" />
-      <View class="absolute left-[16] top-[13] w-[14] h-[9] rounded bg-[#e4ece6]" />
-      <View class="absolute left-[20] top-[22] w-[17] h-[17] rounded-full bg-[#586e67]" />
-      <View class="absolute left-[24] top-[26] w-[9] h-[9] rounded-full bg-[#a2bdb1]" />
-    </> : i === 13 ? <>
-      <View class="absolute left-[12] top-[15] w-[19] h-[19] rounded-full bg-white" />
-      <View class="absolute left-[25] top-[15] w-[19] h-[19] rounded-full bg-white" />
-      <View class="absolute left-[17] top-[23] w-[22] h-[22] bg-white" style={{ rotate: 45 }} />
-    </> : i === 14 ? <>
-      <View class="absolute left-[10] top-[14] w-[17] h-[29] rounded bg-[#fff3d9]" style={{ rotate: -6 }} />
-      <View class="absolute left-[29] top-[14] w-[17] h-[29] rounded bg-white" style={{ rotate: 6 }} />
-    </> : <>
-      <View class="absolute left-[12] top-[10] w-[32] h-[11] rounded bg-[#f3ebfd]" />
-      {[0, 1, 2, 3, 4, 5].map(n => <View class="absolute w-[8] h-[8] rounded bg-white" style={{ insetL: 12 + n % 3 * 12, insetT: 27 + Math.floor(n / 3) * 12 }} />)}
-    </>}
-  </View>;
 }
 
 function Mail() {

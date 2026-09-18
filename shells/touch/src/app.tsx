@@ -9,7 +9,8 @@ import { simulationHz } from "@pocketjs/framework/clock";
 import { reportAppAction, getOps, hostViewport } from "@pocketjs/framework/host";
 import { Navigation, smooth } from "./navigation.ts";
 import { APPS, HOME_PAGES } from "./catalog.ts";
-import { Icon, AppMockup } from "./mockups.tsx";
+import { AppMockup } from "./mockups.tsx";
+import { Icon } from "./icons.tsx";
 
 const NAMES = APPS.map(app => app.name);
 const COLORS = APPS.map(app => app.color);
@@ -148,7 +149,7 @@ export default function TouchShell() {
   });
 
   return <View debugName="TouchShell" class="relative overflow-hidden" style={{ width: layout().width, height: layout().height }}>
-    <Image nodeRef={n => wallpaper = n!} class="absolute" style={layout().wallpaper} src="wallpaper.svg" />
+    <Image nodeRef={n => wallpaper = n!} class="absolute" style={layout().wallpaper} src="art/wallpaper.png" />
     <View nodeRef={n => home = n!} class="absolute inset-0">
       {Array.from({ length: HOME_PAGES }, (_, page) => <View nodeRef={n => pages[page] = n!} debugName={`TouchHomePage${page}`} class="absolute inset-0">
         <Text class="absolute left-[22] text-2xl font-bold text-white" style={{ insetT: layout().headerY }}>{page === 0 ? 'Pocket Shell' : 'A little more.'}</Text>

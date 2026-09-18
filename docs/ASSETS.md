@@ -16,6 +16,7 @@ Build intermediates and individual validation runs stay ignored.
 | Desktop `docs/bench/classic-2026-08-23.{md,json}` | Historical baseline cited by the website, including measured data and protocol. It predates the portable renderer. |
 | Desktop `docs/bench/aqua-gpu-2026-09-10.{md,json}` | Dated comparison supporting the documented drag benchmark. It measures CPU submission and capture estimates, not physical input latency. |
 | Desktop `docs/bench/text-offload-{latency.json,welcome.txt}` | The dated text-service measurement and exact input cited by the text documentation. |
+| Touch `src/art/*.png`, `src/images.json` and `art/` | Shipped wallpaper and sixteen Blender-baked icon textures, plus their authoring recipes. Normal builds consume the committed PNGs without requiring Blender. Editable scene exports and render sheets stay in ignored `.pocket-build/touch-art/`. |
 | TypeScript/TSX, C, HTML, CSS and preview JavaScript | Maintained application, daemon, build or site source. Wayland protocol XML is the input to the pointer helper's build and retains its embedded MIT notice. |
 | Package/runtime manifests, tsconfigs, CI, Bun lockfile and `.gitmodules` | Build and dependency inputs. There is one root PocketJS gitlink and one workspace lockfile. |
 | GPL texts and third-party notices | Distribution terms; generated font atlases keep the source fonts' OFL terms. See [LICENSING.md](../LICENSING.md). |
