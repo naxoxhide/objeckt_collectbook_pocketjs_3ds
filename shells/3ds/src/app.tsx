@@ -11,17 +11,8 @@ import { Deck } from "./deck.tsx";
 import { Stage } from "./stage.tsx";
 import { createShellStore } from "./store.ts";
 
+import CardInventory from "./inventory/index.tsx";
+
 export default function PocketShell() {
-  const store = createShellStore();
-  // Debug handle for the headless sim test (test/sim.test.ts),
-  // which has no touch screen to open windows from.
-  (globalThis as { __pocketShell?: unknown }).__pocketShell = store;
-  return (
-    <>
-      <Stage store={store} />
-      <AuxiliarySurface>
-        <Deck store={store} />
-      </AuxiliarySurface>
-    </>
-  );
+  return <CardInventory />;
 }

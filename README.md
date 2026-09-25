@@ -1,103 +1,168 @@
-# Pocket Shell
+# ARTMS Objekt Collect Book for Nintendo 3DS
 
-Pocket Shell provides shells for handheld devices and desktop operating
-systems, built on [PocketJS](https://github.com/pocket-stack/pocketjs).
-The applications live in one repository with one runtime submodule. Each
-shell owns its interface and input model.
+An interactive digital photocard collect book application tailored for the **Nintendo 3DS** family of systems (3DS, 3DS XL, 2DS, New 3DS), natively built upon [PocketJS](https://github.com/pocket-stack/pocketjs) using SolidJS and Citro3D GPU hardware acceleration.
 
-| Shell | Role | Source and documentation |
-| --- | --- | --- |
-| Nintendo 3DS | Self-rendered tiling windows on the top screen; chords and touch controls on the lower screen | [shells/3ds](shells/3ds/README.md) |
-| iPod touch 4 | An Omarchy companion that mirrors and controls a desktop over USB or Wi-Fi | [shells/ipod](shells/ipod/README.md) |
-| Touch navigation | Portrait gesture navigation and six retained mock apps on iPod touch 4 | [shells/touch](shells/touch/README.md) |
-| Desktop OS | Windows, application launching and Classic 98, XP and Aqua themes on macOS and Linux, with a browser preview | [shells/desktop](shells/desktop/README.md) |
+Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("Objekts") across both screens with full 3D visual depth, responsive stylus touch controls, and multi-language support (English, Spanish, and Korean).
 
-The former **pocket-desktop** project is now the desktop OS shell in this
-repository. Its application code, assets, tests, native build scripts, browser
-preview, website and benchmark history are maintained under `shells/desktop/`.
-The import preserves its Git history. Existing installed package IDs and
-desktop artifact names remain stable.
+---
 
-| Nintendo 3DS | iPod touch 4 | Desktop |
-| --- | --- | --- |
-| ![3DS tiling shell](shells/3ds/media/hw/tiled.png) | ![iPod companion](shells/ipod/media/stage.png) | ![Desktop Aqua theme](shells/desktop/docs/aqua-theme.png) |
+## Highlights & Features
 
-The 3DS image is a capture from the console; the iPod and desktop images are
-simulator renders. The desktop image is retained from the imported project.
+### Dual-Screen Interface
 
-## Repository layout
+- **Top Screen (400×240)**:
+  - **3D Perspective Carousel**: Smooth 3D depth showing adjacent Objekts angled in perspective on the left and right, with the active Objekt highlighted at center.
+  - **Live RTC Clock & Battery Status**: Real-time console hardware clock and battery percentage readout.
+  - **Quick Member Navigation**: Compact member indicator with L/R trigger hints.
+  - **Card Flip Mode (`Ⓑ`)**: Dynamically flip any card between its front portrait and official back serial pattern.
+  - **Detailed Inspect Overlay (`Ⓧ`)**: High-resolution view of the selected Objekt alongside a studio spec sheet backed by the member's signature theme color.
+  - **System Settings Modal (`Ⓨ`)**: Configure system preferences, view Citro3D engine status (60 FPS, bilinear filtering), and switch languages on the fly.
+
+- **Bottom Screen (320×240 Touchscreen)**:
+  - **Stylus Member Selector**: Quick-tap tabs to jump directly between ARTMS members:
+    - 🐰 **HeeJin** (`#ec4899`)
+    - 🕊️ **HaSeul** (`#10b981`)
+    - 🦉 **Kim Lip** (`#ef4444`)
+    - 🐟 **JinSoul** (`#3b82f6`)
+    - 🦇 **Choerry** (`#8b5cf6`)
+  - **Studio Specification Dossier**: Complete metadata sheet detailing Artist, Member, Season, Class (First Class / Special Class), Objekt Type, Serial Number, and wrapped acquisition history.
+  - **Touch Navigation Bar**: Large stylus-friendly buttons to page through cards effortlessly.
+
+---
+
+### Multi-Language Localization (i18n)
+
+The entire user interface dynamically adapts in real time across three supported languages:
+
+| Language | Default on Boot | Character Rendering |
+| :--- | :---: | :--- |
+| **Español** | **Yes** | Accented characters (`á`, `é`, `í`, `ó`, `ú`, `ñ`, `¿`, `¡`) rasterized in Citro3D atlas |
+| **English** | No | Full ASCII glyph set |
+| **한국어** | No | Authentic CJK Hangul subsetting (`AppleGothic.ttf` fallback) with member names in Korean (`희진`, `하슬`, `김립`, `진솔`, `최리`) |
+
+*Language can be toggled at any moment inside the **Ajustes / Settings** modal (`Ⓨ`) via D-Pad Left/Right, L/R triggers, the `Ⓐ` button, or touch screen pills.*
+
+---
+
+## Controls
+
+| Input | In Carousel / Normal Mode | Inside Modals (Inspect / Settings) |
+| :--- | :--- | :--- |
+| **D-Pad ◄ / ►** | Navigate previous / next Objekt | Change Language (in Settings) |
+| **L / R Triggers** | Switch ARTMS member | Cycle Language (in Settings) |
+| **Ⓨ Button** | Open System Settings | Close Settings modal |
+| **Ⓑ Button** | Flip Card (Front / Back) | Close active modal |
+| **Ⓧ Button** | Inspect Objekt in full detail | — |
+| **Ⓐ Button** | — | Cycle Language (in Settings) |
+| **Stylus (Touch)** | Tap member tabs, swipe/tap dossier, or tap navigation buttons | Select language pills directly |
+| **L + R + START** | Exit to Homebrew Launcher | Exit to Homebrew Launcher |
+
+---
+
+## Architecture & Asset Pipeline
+
+PocketJS targets Nintendo 3DS homebrew using native Citro3D commands on the PICA200 GPU. Because the 3DS GPU requires power-of-two (POT) textures, high-resolution source photocard images cannot simply be loaded raw:
+
+1. **Asset Cooking (`scripts/cook-cards.ts`)**:
+   - Ingests source card images (`img/cards/*.webp`) and metadata (`cards.json`).
+   - Crops and normalizes photocard aspect ratios into **128×256 RGBA PNG** textures with bilinear sampling hints (`images.json`).
+   - Generates typed catalogues (`shells/3ds/src/inventory/data.ts`) with member metadata and asset routes.
+2. **Font Atlas Generation (`shells/3ds/src/fonts.json`)**:
+   - Subsets Latin and Korean Hangul glyphs into the Citro3D font texture atlas, ensuring zero missing characters without bloating VRAM.
+3. **Reactive State (`shells/3ds/src/inventory/store.ts`)**:
+   - Built on SolidJS primitives (`createSignal`, `createMemo`, `createEffect`) for 60 FPS performance on bare metal ARM11.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [Bun](https://bun.sh) (v1.1 or later)
+- Git with submodule support
+- A Nintendo 3DS running Luma3DS custom firmware with [Homebrew Launcher](https://github.com/devkitPro/3ds-hbmenu)
+
+### 1. Clone the Repository
+
+Clone recursively to fetch the `vendor/pocketjs` runtime submodule:
+
+```bash
+git clone --recurse-submodules https://github.com/naxoxhide/objeckt_collectbook_pocketjs_3ds.git
+cd objeckt_collectbook_pocketjs_3ds
+```
+
+### 2. Install Dependencies
+
+```bash
+bun install
+```
+
+### 3. Build the 3DS Guest Bundle
+
+To compile the guest `.pocket` bundle for the 3DS runtime:
+
+```bash
+bun run 3ds --pocket-only
+```
+
+The output bundle is generated at:
+```text
+dist/3ds/pocketshell-main.pocket
+```
+
+---
+
+## Deployment to Nintendo 3DS
+
+### Method A: Hot-Push over Wi-Fi (Recommended for Testing)
+
+With Pocket Shell running on your 3DS connected to the same local network:
+
+```bash
+bun run push --host <CONSOLE-IP>
+```
+
+### Method B: Manual SD Card Installation
+
+1. Power off your console and insert the SD card into your PC.
+2. Copy the compiled bundle `dist/3ds/pocketshell-main.pocket` to your PocketJS app slot:
+   ```text
+   SD:/pocketjs/runtime/apps/552d35dd1578b13f/app.pocket
+   ```
+3. Reinsert the SD card into your 3DS and launch Pocket Shell from the Homebrew Launcher.
+
+---
+
+## Project Structure
 
 ```text
-shells/
-  3ds/       src, scripts, test, film, media, docs, manifest
-  ipod/      src (guest + host daemon), scripts, test, media, manifest
-  touch/     src (gesture model and mock apps), scripts, test, manifest
-  desktop/   src/system-ui, scripts, test, assets, docs, preview, site, manifests
-scripts/     setup, desktop command dispatch, repository paths and process helpers
-vendor/
-  pocketjs/  shared runtime submodule
+├── cards.json                    # Full Atom01 Objekt database (classes, numbers, descriptions)
+├── scripts/
+│   └── cook-cards.ts             # Asset pipeline: converts webp cards to 128x256 POT textures
+├── shells/
+│   └── 3ds/
+│       ├── src/
+│       │   ├── app.tsx           # 3DS application root entrypoint
+│       │   ├── fonts.json        # Font atlas configuration (AppleGothic fallback & CJK glyphs)
+│       │   ├── images.json       # Citro3D texture sampling configuration
+│       │   ├── cards/            # Baked 128x256 POT card textures
+│       │   ├── wall/             # Background textures and generators
+│       │   └── inventory/
+│       │       ├── types.ts      # TypeScript interfaces for Objekts and Members
+│       │       ├── data.ts       # Generated catalog of ARTMS members and Objekts
+│       │       ├── i18n.ts       # Localization dictionary (ES, EN, KO)
+│       │       ├── store.ts      # SolidJS reactive state, clock, battery, & inputs
+│       │       ├── card-view.tsx # 3D perspective carousel component
+│       │       ├── stage.tsx     # Top screen view (400x240) & modal overlays
+│       │       └── deck.tsx      # Bottom screen view (320x240) & stylus controls
+└── vendor/
+    └── pocketjs/                 # PocketJS runtime submodule
 ```
 
-The four shells have separate Bun packages and TypeScript configurations.
-See the [asset policy and review](docs/ASSETS.md) for generated outputs,
-source inputs and retained documentation fixtures. Application code is separate;
-runtime APIs come from `@pocketjs/framework/*`.
-The 3DS shell remains specific to its two screens and physical controls.
-
-## Development
-
-Run commands from the repository root. Bun, Rust and the
-`wasm32-unknown-unknown` Rust target are required for the complete check.
-Native targets have additional requirements in their shell's README.
-
-```sh
-git clone --recurse-submodules https://github.com/pocket-stack/pocket-shell.git
-cd pocket-shell
-bun run setup
-rustup target add wasm32-unknown-unknown
-bun run check                    # types, unit and simulator tests for all shells
-bun run check:3ds                # or check:ipod / check:touch / check:desktop
-```
-
-```sh
-bun run desktop macos            # build and launch on macOS
-bun run desktop linux            # build and launch on Linux
-bun run desktop web              # interactive browser preview
-bun run desktop build            # macOS release build without launching
-bun run desktop package:linux    # relocatable Linux distribution
-bun run desktop test:web         # browser interaction smoke test
-bun run desktop build:site
-bun run desktop test:site
-```
-
-Desktop outputs are in `shells/desktop/dist/`. Use `bun run desktop --help`
-to list its commands, including captures, benchmarks and the text companion.
-
-```sh
-bun run guest                    # bundle the 3DS guest for the simulator
-bun run 3ds                      # full console binary in dist/3ds
-bun run push --host <console-ip>  # rebuild and hot-push the 3DS guest
-bun run shot --host <console-ip>  # capture both console screens
-bun run film                     # regenerate shells/3ds/media from tapes
-bun run goldens                  # compare pinned 3DS frames
-bun run touch guest
-bun run touch deploy             # portrait gesture shell on the connected iPod
-bun run ipod guest
-POCKETJS_IPODTOUCH4_VIA=x1nano bun run ipod deploy
-bun run omarchy deploy-host x1nano
-bun run omarchy shots media      # output in shells/ipod/media
-```
-
-PocketJS is pinned through `vendor/pocketjs`, including scaled-glyph rendering
-for live window transforms. Runtime changes belong upstream; this repository
-selects their commit through its submodule pin.
-The 3DS recovery slot remains `/pocketjs/runtime/apps/552d35dd1578b13f/`;
-hold **L+R+START** to return to HBL.
+---
 
 ## License
 
-**GNU GPL version 3.** Root, 3DS, iPod and touch code uses
-`GPL-3.0-or-later`; imported desktop code retains `GPL-3.0-only`.
-PocketJS and third-party fonts retain their own licenses. See
-[LICENSING.md](LICENSING.md), [LICENSE](LICENSE) and
-[contribution rules](CONTRIBUTING.md).
+This project is distributed under the **GNU General Public License v3 (GPL-3.0-or-later)**.
+- PocketJS runtime components remain under the **MIT License**.
+- Photocard artwork, imagery, and member trademarks are the property of **MODHAUS** and **ARTMS**. This software is a non-commercial, fan-made homebrew utility.

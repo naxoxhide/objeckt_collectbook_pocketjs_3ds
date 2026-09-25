@@ -1,5 +1,134 @@
 {
-  "wall/road.png": { "psm": 0 },
-  "wall/lake.png": { "psm": 0 },
-  "wall/swirl.png": { "psm": 0 }
+  "wall/road.png": {
+    "psm": 0
+  },
+  "wall/lake.png": {
+    "psm": 0
+  },
+  "wall/swirl.png": {
+    "psm": 0
+  },
+  "wall/dots.png": {
+    "psm": 0
+  },
+  "cards/heejin_atom01_117.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_back.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_118.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_119.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_120.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_205.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_back_sp.png": {
+    "linear": true
+  },
+  "cards/heejin_atom01_206.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_117.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_back.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_118.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_119.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_120.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_205.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_back_sp.png": {
+    "linear": true
+  },
+  "cards/haseul_atom01_206.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_117.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_back.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_118.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_119.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_120.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_205.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_back_sp.png": {
+    "linear": true
+  },
+  "cards/kimlip_atom01_206.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_117.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_back.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_118.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_119.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_120.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_205.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_back_sp.png": {
+    "linear": true
+  },
+  "cards/jinsoul_atom01_206.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_117.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_back.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_118.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_119.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_120.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_205.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_back_sp.png": {
+    "linear": true
+  },
+  "cards/choerry_atom01_206.png": {
+    "linear": true
+  }
 }

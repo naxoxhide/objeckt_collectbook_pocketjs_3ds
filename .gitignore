@@ -6,6 +6,16 @@ dist/
 .DS_Store
 *.log
 
+# Raw assets staging
+/img/
+
+# Editor & OS artifacts
+.vscode/
+.idea/
+*.swp
+*.bak
+*.tmp
+
 # Deterministic desktop assets: keep generators and original font inputs.
 /shells/desktop/src/system-ui/icons/
 /shells/desktop/src/system-ui/fonts/
