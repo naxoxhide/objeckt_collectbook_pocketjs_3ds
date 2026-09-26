@@ -45,7 +45,7 @@ export function DeckInventory(props: { store: InventoryStore }) {
   return (
     <View
       debugName="BottomScreenDeck"
-      class="relative w-[320] h-[240] overflow-hidden bg-[#dde1e7] p-2 flex-col justify-between"
+      class="relative w-[320] h-[240] overflow-hidden bg-[#dde1e7] px-2 py-1 flex-col justify-between"
     >
       {/* 1. Subtle Dot Matrix Background */}
       <Image
@@ -88,68 +88,89 @@ export function DeckInventory(props: { store: InventoryStore }) {
       {/* 3. Main Objekt Specification Card (Studio Dossier) */}
       <View
         debugName="CardSpecSheet"
-        class="flex-1 my-1 rounded-lg bg-white border-2 border-black p-2 flex-col justify-between shadow-md z-10 overflow-hidden relative"
+        class="flex-1 my-0.5 rounded-lg bg-white border-2 border-black px-2 py-1.5 flex-col justify-start gap-1 shadow-md z-10 overflow-hidden relative"
       >
-        {/* Section Header */}
-        <View class="border-b border-gray-200 pb-1 px-1">
-          <Text class="text-xs font-bold text-black tracking-tight">{store.t().specTitle}</Text>
-        </View>
-
-        {/* Metadata Grid */}
-        <View class="flex-col gap-1 py-1 px-1">
-          {/* Row 1: Artist & Member */}
-          <View class="flex-row items-center justify-between">
-            <View class="flex-row items-center gap-1">
-              <Text class="text-xs font-bold text-gray-500">{store.t().artist}:</Text>
-              <Text class="text-xs font-bold text-black">{card().artist}</Text>
-            </View>
-            <View class="flex-row items-center gap-1">
-              <Text class="text-xs font-bold text-gray-500">{store.t().memberLabel}:</Text>
-              <Text class="text-xs font-bold text-black">
-                {store.lang() === "ko"
-                  ? (MEMBERS.find((m) => m.name === card().member)?.koreanName ?? card().member)
-                  : card().member}
-              </Text>
-            </View>
-          </View>
-
-          {/* Row 2: Season & Class */}
-          <View class="flex-row items-center justify-between">
-            <View class="flex-row items-center gap-1">
-              <Text class="text-xs font-bold text-gray-500">{store.t().season}:</Text>
-              <Text class="text-xs font-bold text-black">{card().season}</Text>
-            </View>
-            <View class="flex-row items-center gap-1">
-              <Text class="text-xs font-bold text-gray-500">Class:</Text>
-              <Text class="text-xs font-bold text-black">{store.t().classLabel(card().class)}</Text>
-            </View>
-          </View>
-
-          {/* Row 3: Type & Number */}
-          <View class="flex-row items-center justify-between">
-            <View class="flex-row items-center gap-1">
-              <Text class="text-xs font-bold text-gray-500">{store.t().type}:</Text>
-              <Text class="text-xs font-bold text-black">{store.t().typeObjekt(card().type)}</Text>
-            </View>
-            <View class="flex-row items-center gap-1">
-              <Text class="text-xs font-bold text-gray-500">{store.t().noLabel}:</Text>
+        {/* Top Group: Header & Metadata Grid */}
+        <View class="flex-col gap-0.5">
+          {/* Section Header */}
+          <View class="px-1 flex-row items-center justify-between">
+            <Text class="text-xs font-bold text-black">{store.t().specTitle}</Text>
+            <View class="px-1.5 py-0.5 rounded bg-black items-center justify-center">
               <Text class="text-xs font-mono font-bold text-[#10b981]">
                 {card().number}
               </Text>
             </View>
           </View>
 
-          {/* Row 4: Information (Complete, multi-line) */}
-          <View class="flex-col pt-1 border-t border-gray-200">
-            <Text class="text-xs font-bold text-gray-500 mb-0.5">{store.t().information}:</Text>
-            <For each={wrapText(store.localizedInfo(card().information), 38)}>
-              {(line) => <Text class="text-xs text-black leading-4">{line}</Text>}
-            </For>
+          {/* Divider */}
+          <View class="w-full h-[1] bg-gray-200 my-0.5" />
+
+          {/* Metadata Grid */}
+          <View class="flex-col gap-0.5 px-1">
+            {/* Row 1: Artist & Member */}
+            <View class="flex-row items-center justify-between">
+              <View class="flex-row items-center gap-1">
+                <Text class="text-xs font-bold text-gray-500">{store.t().artist}:</Text>
+                <Text class="text-xs font-bold text-black">{card().artist}</Text>
+              </View>
+              <View class="flex-row items-center gap-1">
+                <Text class="text-xs font-bold text-gray-500">{store.t().memberLabel}:</Text>
+                <Text class="text-xs font-bold text-black">
+                  {store.lang() === "ko"
+                    ? (MEMBERS.find((m) => m.name === card().member)?.koreanName ?? card().member)
+                    : card().member}
+                </Text>
+              </View>
+            </View>
+
+            {/* Row 2: Season & Class */}
+            <View class="flex-row items-center justify-between">
+              <View class="flex-row items-center gap-1">
+                <Text class="text-xs font-bold text-gray-500">{store.t().season}:</Text>
+                <Text class="text-xs font-bold text-black">{card().season}</Text>
+              </View>
+              <View class="flex-row items-center gap-1">
+                <Text class="text-xs font-bold text-gray-500">Class:</Text>
+                <Text class="text-xs font-bold text-black">{store.t().classLabel(card().class)}</Text>
+              </View>
+            </View>
+
+            {/* Row 3: Type & Number */}
+            <View class="flex-row items-center justify-between">
+              <View class="flex-row items-center gap-1">
+                <Text class="text-xs font-bold text-gray-500">{store.t().type}:</Text>
+                <Text class="text-xs font-bold text-black">{store.t().typeObjekt(card().type)}</Text>
+              </View>
+              <View class="flex-row items-center gap-1">
+                <Text class="text-xs font-bold text-gray-500">{store.t().noLabel}:</Text>
+                <Text class="text-xs font-mono font-bold text-[#10b981]">
+                  {card().number}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        {/* Bottom padding spacer */}
-        <View class="h-[2]" />
+        {/* Bottom Group: Information Section (Dedicated Flex Box) */}
+        <View class="flex-col gap-0.5">
+          {/* Divider */}
+          <View class="w-full h-[1] bg-gray-200 my-0.5" />
+
+          {/* Information Section with Indicator and Wrapped Lines */}
+          <View class="flex-col px-1 gap-0.5">
+            <View class="flex-row items-center gap-1.5">
+              <View class="w-[6] h-[6] rounded-full bg-[#10b981]" />
+              <Text class="text-xs font-bold text-gray-600">{store.t().information}:</Text>
+            </View>
+            <View class="px-2 py-1 rounded bg-gray-50 border border-gray-200 flex-col gap-0.5">
+              <For each={wrapText(store.localizedInfo(card().information), 27)}>
+                {(line) => (
+                  <Text class="text-xs text-gray-800">{line}</Text>
+                )}
+              </For>
+            </View>
+          </View>
+        </View>
       </View>
 
       {/* 4. Touch Navigation Buttons for Stylus (Only Anterior & Siguiente) */}

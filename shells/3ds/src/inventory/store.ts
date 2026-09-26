@@ -3,7 +3,7 @@
 
 import { createMemo, createSignal } from "solid-js";
 import { BTN } from "@pocketjs/framework/input";
-import { analogX, onFrame } from "@pocketjs/framework/lifecycle";
+import { analogX, analogY, onFrame } from "@pocketjs/framework/lifecycle";
 import { civilFromEpoch, detectOffsetMinutes } from "../shell.ts";
 import { MEMBERS, OBJEKTS } from "./data.ts";
 import { TRANSLATIONS, getLocalizedInformation, type Language, type Translations } from "./i18n.ts";
@@ -39,6 +39,9 @@ export interface InventoryStore {
   inspectOpen: () => boolean;
   setInspectOpen: (open: boolean) => void;
   toggleInspect: () => void;
+  inspectHelpOpen: () => boolean;
+  setInspectHelpOpen: (open: boolean) => void;
+  dismissInspectHelp: () => void;
 
   settingsOpen: () => boolean;
   setSettingsOpen: (open: boolean) => void;
@@ -46,6 +49,11 @@ export interface InventoryStore {
 
   cardFlipped: () => boolean;
   toggleFlip: () => void;
+
+  // 3D Circle Pad tilt and foil shimmer
+  tiltX: () => number;
+  tiltY: () => number;
+  shimmerTick: () => number;
 
   // Console hardware indicators
   timeStr: () => string;
@@ -74,9 +82,15 @@ export function createInventoryStore(): InventoryStore {
   const [memberIdx, setMemberIdxRaw] = createSignal(1);
   const [cardIdx, setCardIdx] = createSignal(0);
   const [inspectOpen, setInspectOpen] = createSignal(false);
+  const [inspectHelpOpen, setInspectHelpOpen] = createSignal(false);
   const [settingsOpen, setSettingsOpen] = createSignal(false);
   const [cardFlipped, setCardFlipped] = createSignal(false);
   const [lastAction, setLastAction] = createSignal("Ready");
+
+  // 3D Circle Pad / D-Pad tilt and foil shimmer
+  const [tiltX, setTiltX] = createSignal(0);
+  const [tiltY, setTiltY] = createSignal(0);
+  const [shimmerTick, setShimmerTick] = createSignal(0);
 
   // Filter cards by active member
   const activeMember = createMemo(() => MEMBERS[memberIdx()] ?? MEMBERS[0]);
@@ -131,14 +145,28 @@ export function createInventoryStore(): InventoryStore {
   const nextCard = () => setCardIdxSafe(cardIdx() + 1);
   const prevCard = () => setCardIdxSafe(cardIdx() - 1);
 
+  const dismissInspectHelp = () => setInspectHelpOpen(false);
+
   const toggleInspect = () => {
     if (settingsOpen()) setSettingsOpen(false);
-    setInspectOpen(!inspectOpen());
-    setLastAction(inspectOpen() ? "Inspect Mode" : "Objekt Carousel");
+    const next = !inspectOpen();
+    setInspectOpen(next);
+    setInspectHelpOpen(next);
+    setLastAction(next ? "Inspect Mode" : "Objekt Carousel");
+  };
+
+  const setInspectOpenSafe = (open: boolean) => {
+    if (settingsOpen()) setSettingsOpen(false);
+    setInspectOpen(open);
+    setInspectHelpOpen(open);
+    setLastAction(open ? "Inspect Mode" : "Objekt Carousel");
   };
 
   const toggleSettings = () => {
-    if (inspectOpen()) setInspectOpen(false);
+    if (inspectOpen()) {
+      setInspectOpen(false);
+      setInspectHelpOpen(false);
+    }
     setSettingsOpen(!settingsOpen());
     setLastAction(settingsOpen() ? "Settings" : "Objekt Carousel");
   };
@@ -172,14 +200,40 @@ export function createInventoryStore(): InventoryStore {
       setTimeStr(`${h}:${m}`);
     }
 
-    // 3. Circle Pad analog left/right with dead-zone and cooldown
-    const stickX = analogX();
-    if (analogCooldown > 0) {
-      analogCooldown--;
-    } else if (Math.abs(stickX) > 0.55) {
-      if (stickX > 0) nextCard();
-      else prevCard();
-      analogCooldown = 15; // wait 15 frames (~250ms) before repeating
+    // 3. Circle Pad analog + D-Pad handling
+    if (inspectOpen()) {
+      let ax = analogX(); // -1..1 (left/right)
+      let ay = analogY(); // -1..1 (up/down; down positive)
+
+      // Allow D-Pad to also tilt & move Objekt in 3D
+      if (buttons & BTN.LEFT) ax = -1;
+      else if (buttons & BTN.RIGHT) ax = 1;
+      if (buttons & BTN.UP) ay = -1;
+      else if (buttons & BTN.DOWN) ay = 1;
+
+      // When stick/d-pad tilts right (ax > 0) -> card rotates around Y
+      // When stick/d-pad tilts up (ay < 0) -> card rotates around X (tips back)
+      const targetTiltX = -ay * 18;
+      const targetTiltY = ax * 18;
+      // Silky smooth lerp interpolation (spring-back on release)
+      setTiltX((prev) => prev + (targetTiltX - prev) * 0.22);
+      setTiltY((prev) => prev + (targetTiltY - prev) * 0.22);
+      setShimmerTick((prev) => (prev + 1) % 360);
+    } else {
+      // Re-center tilt when exiting inspect mode
+      if (tiltX() !== 0 || tiltY() !== 0) {
+        setTiltX((prev) => (Math.abs(prev) < 0.1 ? 0 : prev * 0.6));
+        setTiltY((prev) => (Math.abs(prev) < 0.1 ? 0 : prev * 0.6));
+      }
+      // Circle Pad analog left/right with dead-zone and cooldown for carousel
+      const stickX = analogX();
+      if (analogCooldown > 0) {
+        analogCooldown--;
+      } else if (Math.abs(stickX) > 0.55) {
+        if (stickX > 0) nextCard();
+        else prevCard();
+        analogCooldown = 15; // wait 15 frames (~250ms) before repeating
+      }
     }
 
     // Modal-specific input handling:
@@ -200,8 +254,30 @@ export function createInventoryStore(): InventoryStore {
     }
 
     if (inspectOpen()) {
+      // If initial instructions modal is visible:
+      if (inspectHelpOpen()) {
+        // Pressing B (BTN.CROSS) or A (BTN.CIRCLE) closes the initial instructions modal
+        if (pressed & (BTN.CROSS | BTN.CIRCLE)) {
+          dismissInspectHelp();
+          return;
+        }
+        // Pressing X (BTN.TRIANGLE) closes inspect completely
+        if (pressed & BTN.TRIANGLE) {
+          setInspectOpenSafe(false);
+          return;
+        }
+        return;
+      }
+
+      // Initial modal dismissed -> large Objekt 3D inspect view:
+      // Y button (BTN.SQUARE) flips card
+      if (pressed & BTN.SQUARE) {
+        toggleFlip();
+        return;
+      }
+      // B button (BTN.CROSS) or X button (BTN.TRIANGLE) closes Inspect mode
       if (pressed & (BTN.CROSS | BTN.TRIANGLE)) {
-        setInspectOpen(false);
+        setInspectOpenSafe(false);
         return;
       }
       return;
@@ -272,13 +348,19 @@ export function createInventoryStore(): InventoryStore {
     leftCard,
     rightCard,
     inspectOpen,
-    setInspectOpen,
+    setInspectOpen: setInspectOpenSafe,
     toggleInspect,
+    inspectHelpOpen,
+    setInspectHelpOpen,
+    dismissInspectHelp,
     settingsOpen,
     setSettingsOpen,
     toggleSettings,
     cardFlipped,
     toggleFlip,
+    tiltX,
+    tiltY,
+    shimmerTick,
     timeStr,
     batteryStr: () => "100%",
     wifiStatus: () => "connected",

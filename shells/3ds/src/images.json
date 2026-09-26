@@ -130,5 +130,11 @@
   },
   "cards/choerry_atom01_206.png": {
     "linear": true
+  },
+  "cards/foil_holo_a.png": {
+    "linear": true
+  },
+  "cards/foil_holo_b.png": {
+    "linear": true
   }
 }

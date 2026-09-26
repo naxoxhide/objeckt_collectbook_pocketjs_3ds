@@ -2,7 +2,7 @@
 
 An interactive digital photocard collect book application tailored for the **Nintendo 3DS** family of systems (3DS, 3DS XL, 2DS, New 3DS), natively built upon [PocketJS](https://github.com/pocket-stack/pocketjs) using SolidJS and Citro3D GPU hardware acceleration.
 
-Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("Objekts") across both screens with full 3D visual depth, responsive stylus touch controls, and multi-language support (English, Spanish, and Korean).
+Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("Objekts") across both screens with full 3D visual depth, hardware-accelerated holographic foil effects, responsive stylus touch controls, and multi-language support (English, Spanish, and Korean).
 
 ---
 
@@ -12,11 +12,12 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
 
 - **Top Screen (400×240)**:
   - **3D Perspective Carousel**: Smooth 3D depth showing adjacent Objekts angled in perspective on the left and right, with the active Objekt highlighted at center.
+  - **Special Class 3D Holographic Foil**: Native GPU additive blending (`BLEND_ADD`) rendering authentic prismatic shimmer and stardust sparkle layers on rare Special Class cards, dynamically catching light as the card tilts in 3D space.
+  - **Full-Screen 3D Inspect Mode (`Ⓧ`)**: Isolates the photocard in an immersive 3D space. Tilt and rotate freely in real time using the **Circle Pad analog stick** or **D-Pad**. Flip the card between its front portrait and official back serial pattern with `Ⓨ`.
+  - **Inspect Help Dialog**: Compact in-app overlay showing clear controller keybindings and touch instructions.
   - **Live RTC Clock & Battery Status**: Real-time console hardware clock and battery percentage readout.
   - **Quick Member Navigation**: Compact member indicator with L/R trigger hints.
-  - **Card Flip Mode (`Ⓑ`)**: Dynamically flip any card between its front portrait and official back serial pattern.
-  - **Detailed Inspect Overlay (`Ⓧ`)**: High-resolution view of the selected Objekt alongside a studio spec sheet backed by the member's signature theme color.
-  - **System Settings Modal (`Ⓨ`)**: Configure system preferences, view Citro3D engine status (60 FPS, bilinear filtering), and switch languages on the fly.
+  - **System Settings Modal (`Ⓨ` in Carousel)**: Configure system preferences, view Citro3D engine status (60 FPS, bilinear filtering), and switch languages on the fly.
 
 - **Bottom Screen (320×240 Touchscreen)**:
   - **Stylus Member Selector**: Quick-tap tabs to jump directly between ARTMS members:
@@ -25,7 +26,8 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
     - 🦉 **Kim Lip** (`#ef4444`)
     - 🐟 **JinSoul** (`#3b82f6`)
     - 🦇 **Choerry** (`#8b5cf6`)
-  - **Studio Specification Dossier**: Complete metadata sheet detailing Artist, Member, Season, Class (First Class / Special Class), Objekt Type, Serial Number, and wrapped acquisition history.
+  - **Studio Specification Dossier**: Modern dossier card detailing Artist, Member, Season, Class (First Class / Special Class), Objekt Type, and Serial Number.
+  - **Adaptive Flex Information Section**: Structured flex box layout with visual weight character wrapping (`charVisualWeight`), ensuring descriptions never clip horizontally or vertically across all three supported languages.
   - **Touch Navigation Bar**: Large stylus-friendly buttons to page through cards effortlessly.
 
 ---
@@ -34,11 +36,11 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
 
 The entire user interface dynamically adapts in real time across three supported languages:
 
-| Language | Default on Boot | Character Rendering |
+| Language | Default on Boot | Character Rendering & Typography |
 | :--- | :---: | :--- |
 | **Español** | **Yes** | Accented characters (`á`, `é`, `í`, `ó`, `ú`, `ñ`, `¿`, `¡`) rasterized in Citro3D atlas |
 | **English** | No | Full ASCII glyph set |
-| **한국어** | No | Authentic CJK Hangul subsetting (`AppleGothic.ttf` fallback) with member names in Korean (`희진`, `하슬`, `김립`, `진솔`, `최리`) |
+| **한국어** | No | Authentic CJK Hangul subsetting (`AppleGothic.ttf` fallback) with member names in Korean (`희진`, `하슬`, `김립`, `진솔`, `최리`) and proportional visual width formatting |
 
 *Language can be toggled at any moment inside the **Ajustes / Settings** modal (`Ⓨ`) via D-Pad Left/Right, L/R triggers, the `Ⓐ` button, or touch screen pills.*
 
@@ -46,31 +48,36 @@ The entire user interface dynamically adapts in real time across three supported
 
 ## Controls
 
-| Input | In Carousel / Normal Mode | Inside Modals (Inspect / Settings) |
-| :--- | :--- | :--- |
-| **D-Pad ◄ / ►** | Navigate previous / next Objekt | Change Language (in Settings) |
-| **L / R Triggers** | Switch ARTMS member | Cycle Language (in Settings) |
-| **Ⓨ Button** | Open System Settings | Close Settings modal |
-| **Ⓑ Button** | Flip Card (Front / Back) | Close active modal |
-| **Ⓧ Button** | Inspect Objekt in full detail | — |
-| **Ⓐ Button** | — | Cycle Language (in Settings) |
-| **Stylus (Touch)** | Tap member tabs, swipe/tap dossier, or tap navigation buttons | Select language pills directly |
-| **L + R + START** | Exit to Homebrew Launcher | Exit to Homebrew Launcher |
+| Input | In Carousel / Normal Mode | In 3D Inspect Mode (`Ⓧ`) | Inside Settings Modal (`Ⓨ`) |
+| :--- | :--- | :--- | :--- |
+| **Circle Pad / Analog** | Page through Objekts (with deadzone) | **Tilt & move card in 3D** | — |
+| **D-Pad ◄ / ► / ▲ / ▼** | Navigate previous / next Objekt | **Tilt & move card in 3D** | Change Language |
+| **L / R Triggers** | Switch ARTMS member | Switch ARTMS member | Cycle Language |
+| **Ⓨ Button** | Open System Settings | **Flip Card (Front / Back)** | Close Settings modal |
+| **Ⓑ Button** | Flip Card (Front / Back) | **Close Inspect Mode / Modal** | Close Settings modal |
+| **Ⓧ Button** | **Inspect Objekt in 3D** | — | — |
+| **Ⓐ Button** | — | — | Cycle Language |
+| **Stylus (Touch)** | Tap member tabs, dossier, or buttons | Tap screen or button to dismiss/close | Select language pills directly |
+| **L + R + START** | Exit to Homebrew Launcher | Exit to Homebrew Launcher | Exit to Homebrew Launcher |
 
 ---
 
 ## Architecture & Asset Pipeline
 
-PocketJS targets Nintendo 3DS homebrew using native Citro3D commands on the PICA200 GPU. Because the 3DS GPU requires power-of-two (POT) textures, high-resolution source photocard images cannot simply be loaded raw:
+PocketJS targets Nintendo 3DS homebrew using native Citro3D commands on the PICA200 GPU. Because the 3DS GPU requires power-of-two (POT) textures, high-resolution source photocard images and procedural foils are processed through a dedicated pipeline:
 
 1. **Asset Cooking (`scripts/cook-cards.ts`)**:
    - Ingests source card images (`img/cards/*.webp`) and metadata (`cards.json`).
    - Crops and normalizes photocard aspect ratios into **128×256 RGBA PNG** textures with bilinear sampling hints (`images.json`).
    - Generates typed catalogues (`shells/3ds/src/inventory/data.ts`) with member metadata and asset routes.
-2. **Font Atlas Generation (`shells/3ds/src/fonts.json`)**:
+2. **Procedural Holographic Foils (`shells/3ds/src/cards/gen-foil.py`)**:
+   - Generates 128×256 POT chromatic aberration sheen and sparkle textures (`foil_holo_a.png`, `foil_holo_b.png`) blended via native Citro3D texture combiners.
+3. **Font Atlas Generation (`shells/3ds/src/fonts.json`)**:
    - Subsets Latin and Korean Hangul glyphs into the Citro3D font texture atlas, ensuring zero missing characters without bloating VRAM.
-3. **Reactive State (`shells/3ds/src/inventory/store.ts`)**:
-   - Built on SolidJS primitives (`createSignal`, `createMemo`, `createEffect`) for 60 FPS performance on bare metal ARM11.
+4. **Visual Width Typography (`wrapText`)**:
+   - Computes proportional font visual weights (1.85× weight for Hangul full-width characters vs 1.0× for Latin) to prevent text overflow on 3DS screens.
+5. **Reactive State (`shells/3ds/src/inventory/store.ts`)**:
+   - Built on SolidJS primitives (`createSignal`, `createMemo`, `createEffect`) delivering smooth 60 FPS performance on bare metal ARM11.
 
 ---
 
@@ -114,20 +121,32 @@ dist/3ds/pocketshell-main.pocket
 
 ## Deployment to Nintendo 3DS
 
-### Method A: Hot-Push over Wi-Fi (Recommended for Testing)
+### Method A: Over-the-Air via FTP (Recommended)
 
-With Pocket Shell running on your 3DS connected to the same local network:
+1. Launch **FTPD** on your 3DS (connected to the same local Wi-Fi). Note the console's IP address.
+2. From your terminal, upload the compiled `.pocket` bundle directly to your console's app slot:
+   ```bash
+   curl --ftp-create-dirs -T dist/3ds/pocketshell-main.pocket ftp://<CONSOLE-IP>:5000/pocketjs/runtime/apps/552d35dd1578b13f/pending.pocket
+   ```
+3. Exit FTPD and launch **Pocket Shell** from the Homebrew Launcher. The runtime will automatically stage and activate the new package upon boot.
 
-```bash
-bun run push --host <CONSOLE-IP>
-```
+### Method B: Hot-Push Wire (Pair & Push)
 
-### Method B: Manual SD Card Installation
+1. **Pair once** while FTPD is open:
+   ```bash
+   bun run pair --host <CONSOLE-IP>
+   ```
+2. Launch Pocket Shell on the console and push live updates:
+   ```bash
+   bun run push --host <CONSOLE-IP>
+   ```
+
+### Method C: Manual SD Card Transfer
 
 1. Power off your console and insert the SD card into your PC.
-2. Copy the compiled bundle `dist/3ds/pocketshell-main.pocket` to your PocketJS app slot:
+2. Copy `dist/3ds/pocketshell-main.pocket` to:
    ```text
-   SD:/pocketjs/runtime/apps/552d35dd1578b13f/app.pocket
+   SD:/pocketjs/runtime/apps/552d35dd1578b13f/pending.pocket
    ```
 3. Reinsert the SD card into your 3DS and launch Pocket Shell from the Homebrew Launcher.
 
@@ -145,7 +164,10 @@ bun run push --host <CONSOLE-IP>
 │       │   ├── app.tsx           # 3DS application root entrypoint
 │       │   ├── fonts.json        # Font atlas configuration (AppleGothic fallback & CJK glyphs)
 │       │   ├── images.json       # Citro3D texture sampling configuration
-│       │   ├── cards/            # Baked 128x256 POT card textures
+│       │   ├── cards/            # Baked 128x256 POT card & foil textures
+│       │   │   ├── gen-foil.py   # Procedural holographic foil texture generator
+│       │   │   ├── foil_holo_a.png
+│       │   │   └── foil_holo_b.png
 │       │   ├── wall/             # Background textures and generators
 │       │   └── inventory/
 │       │       ├── types.ts      # TypeScript interfaces for Objekts and Members
@@ -153,8 +175,8 @@ bun run push --host <CONSOLE-IP>
 │       │       ├── i18n.ts       # Localization dictionary (ES, EN, KO)
 │       │       ├── store.ts      # SolidJS reactive state, clock, battery, & inputs
 │       │       ├── card-view.tsx # 3D perspective carousel component
-│       │       ├── stage.tsx     # Top screen view (400x240) & modal overlays
-│       │       └── deck.tsx      # Bottom screen view (320x240) & stylus controls
+│       │       ├── stage.tsx     # Top screen view (400x240), 3D inspect, & modals
+│       │       └── deck.tsx      # Bottom screen view (320x240), dossier, & stylus controls
 └── vendor/
     └── pocketjs/                 # PocketJS runtime submodule
 ```

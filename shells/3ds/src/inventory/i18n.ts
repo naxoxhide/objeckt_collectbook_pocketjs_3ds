@@ -29,6 +29,13 @@ export interface Translations {
   information: string;
   closePrompt: string;
   classLabel: (cls: string) => string;
+  tiltHint: string;
+  specialFoil: string;
+  inspectHelpTitle: string;
+  inspectHelpDpad: string;
+  inspectHelpFlip: string;
+  inspectHelpClose: string;
+  continuePrompt: string;
 
   // Bottom Screen Dossier
   specTitle: string;
@@ -63,6 +70,13 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     information: "Información",
     closePrompt: "Presiona Ⓑ para cerrar",
     classLabel: (cls: string) => `${cls} Class`,
+    tiltHint: "D-Pad / Stick: 3D",
+    specialFoil: "★ SPECIAL FOIL",
+    inspectHelpTitle: "INSPECCIÓN DE OBJEKT",
+    inspectHelpDpad: "Mover e inclinar en 3D",
+    inspectHelpFlip: "Girar carta (Frente / Reverso)",
+    inspectHelpClose: "Cerrar este modal",
+    continuePrompt: "Continuar",
 
     specTitle: "ESPECIFICACIÓN DE OBJEKT",
     memberLabel: "Miembro",
@@ -94,6 +108,13 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     information: "Information",
     closePrompt: "Press Ⓑ to close",
     classLabel: (cls: string) => `${cls} Class`,
+    tiltHint: "D-Pad / Stick: 3D",
+    specialFoil: "★ SPECIAL FOIL",
+    inspectHelpTitle: "OBJEKT INSPECTION",
+    inspectHelpDpad: "Move & tilt in 3D",
+    inspectHelpFlip: "Flip card (Front / Back)",
+    inspectHelpClose: "Close this modal",
+    continuePrompt: "Continue",
 
     specTitle: "OBJEKT SPECIFICATION",
     memberLabel: "Member",
@@ -125,6 +146,13 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     information: "정보",
     closePrompt: "Ⓑ 버튼을 눌러 닫기",
     classLabel: (cls: string) => cls === "Special" ? "스페셜 클래스" : "퍼스트 클래스",
+    tiltHint: "D-Pad / 스틱: 3D",
+    specialFoil: "★ 스페셜 포일",
+    inspectHelpTitle: "3D 검사 조작 안내",
+    inspectHelpDpad: "3D 기울이기 / 이동",
+    inspectHelpFlip: "카드 회전 (앞면 / 뒷면)",
+    inspectHelpClose: "이 창 닫기",
+    continuePrompt: "계속하기",
 
     specTitle: "오브젝트 사양",
     memberLabel: "멤버",
