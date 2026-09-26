@@ -11,9 +11,16 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
 ### Dual-Screen Interface
 
 - **Top Screen (400×240)**:
-  - **3D Perspective Carousel**: Smooth 3D depth showing adjacent Objekts angled in perspective on the left and right, with the active Objekt highlighted at center.
-  - **Special Class 3D Holographic Foil**: Native GPU additive blending (`BLEND_ADD`) rendering authentic prismatic shimmer and stardust sparkle layers on rare Special Class cards, dynamically catching light as the card tilts in 3D space.
-  - **Full-Screen 3D Inspect Mode (`Ⓧ`)**: Isolates the photocard in an immersive 3D space. Tilt and rotate freely in real time using the **Circle Pad analog stick** or **D-Pad**. Flip the card between its front portrait and official back serial pattern with `Ⓨ`.
+  - **3D Perspective Carousel**: Smooth 3D depth showing adjacent Objekts angled in perspective on the left and right, with the active Objekt highlighted at center with clean transparent rounded corners.
+  - **Physics-Based Spring-Damper Tilt (`hover-tilt` model)**: Real-time harmonic oscillator physics ($F = -k \cdot x - c \cdot v$ with `stiffness: 0.20`, `damping: 0.72`) driving photocard tilt with organic elastic rebound upon releasing the Circle Pad or D-Pad.
+  - **D-Pad Vector Normalization**: Diagonal inputs are projected to the unit circle via `Math.hypot(dx, dy)`, preventing over-rotation and preserving a uniform $\pm 20^\circ$ maximum tilt angle.
+  - **Dynamic Z-Elevation (3D Depth Lift)**: Tilting the card dynamically raises its front elevation (`translateZ`) from 15px at rest up to 24px, accentuating 3D depth and stereoscopy on the top screen.
+  - **Multi-Layer "Cosmos Holo" & Specular Glare (`pokemon-cards-css` architecture)**:
+    - **Dynamic Moving Glare Hotspot (`foil_glare.png`)**: A pure white specular light reflection that glides across the photocard face following the tilt angle, modulated by a physical Fresnel reflectance curve (10% at rest, flaring up to 55% at steep angles).
+    - **Cosmos Holo 4-Point Starbursts & Stardust (`foil_holo_a.png`, `foil_holo_b.png`)**: Procedural diffraction textures featuring authentic 4-pointed diamond starbursts (`✦` astroid flares), micro-stardust pinpricks, and continuous $-38^\circ$ diagonal rainbow diffraction grating.
+    - **360° Polar Incident Light Tracking**: Continuous incident light direction calculation via `Math.atan2(y, x)` cross-fading complementary diffraction phases.
+  - **Special Class Holographic Badge (`badge_holo.png`)**: The inspect modal header badge features an authentic silver-prismatic holographic foil background with diamond starbursts and crisp black typography.
+  - **Full-Screen 3D Inspect Mode (`Ⓧ`)**: Isolates the photocard in an immersive 3D space. Tilt and rotate freely in real time with the **Circle Pad** or **D-Pad**. Flip the card between its front portrait and official back serial pattern with `Ⓨ`.
   - **Inspect Help Dialog**: Compact in-app overlay showing clear controller keybindings and touch instructions.
   - **Live RTC Clock & Battery Status**: Real-time console hardware clock and battery percentage readout.
   - **Quick Member Navigation**: Compact member indicator with L/R trigger hints.
@@ -26,7 +33,7 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
     - 🦉 **Kim Lip** (`#ef4444`)
     - 🐟 **JinSoul** (`#3b82f6`)
     - 🦇 **Choerry** (`#8b5cf6`)
-  - **Studio Specification Dossier**: Modern dossier card detailing Artist, Member, Season, Class (First Class / Special Class), Objekt Type, and Serial Number.
+  - **Studio Specification Dossier**: Modern dossier card detailing Artist, Member, Season, Class (First Class / Special Class), Objekt Type, and Serial Number, with active member theme color dynamically accenting the serial number badge.
   - **Adaptive Flex Information Section**: Structured flex box layout with visual weight character wrapping (`charVisualWeight`), ensuring descriptions never clip horizontally or vertically across all three supported languages.
   - **Touch Navigation Bar**: Large stylus-friendly buttons to page through cards effortlessly.
 
@@ -70,8 +77,9 @@ PocketJS targets Nintendo 3DS homebrew using native Citro3D commands on the PICA
    - Ingests source card images (`img/cards/*.webp`) and metadata (`cards.json`).
    - Crops and normalizes photocard aspect ratios into **128×256 RGBA PNG** textures with bilinear sampling hints (`images.json`).
    - Generates typed catalogues (`shells/3ds/src/inventory/data.ts`) with member metadata and asset routes.
-2. **Procedural Holographic Foils (`shells/3ds/src/cards/gen-foil.py`)**:
-   - Generates 128×256 POT chromatic aberration sheen and sparkle textures (`foil_holo_a.png`, `foil_holo_b.png`) blended via native Citro3D texture combiners.
+2. **Procedural Holographic Foils & Glare Pipeline**:
+   - Generates 128×256 POT chromatic aberration and Cosmos Holo textures (`foil_holo_a.png`, `foil_holo_b.png`) featuring 4-point diamond starbursts (`✦`) and stardust pinpricks.
+   - Generates radial specular glare hotspots (`foil_glare.png`) and dedicated holographic pill badge textures (`badge_holo.png`) with antialiased alpha masking and bilinear hardware sampling (`images.json`).
 3. **Font Atlas Generation (`shells/3ds/src/fonts.json`)**:
    - Subsets Latin and Korean Hangul glyphs into the Citro3D font texture atlas, ensuring zero missing characters without bloating VRAM.
 4. **Visual Width Typography (`wrapText`)**:
@@ -165,9 +173,10 @@ dist/3ds/pocketshell-main.pocket
 │       │   ├── fonts.json        # Font atlas configuration (AppleGothic fallback & CJK glyphs)
 │       │   ├── images.json       # Citro3D texture sampling configuration
 │       │   ├── cards/            # Baked 128x256 POT card & foil textures
-│       │   │   ├── gen-foil.py   # Procedural holographic foil texture generator
-│       │   │   ├── foil_holo_a.png
-│       │   │   └── foil_holo_b.png
+│       │   │   ├── badge_holo.png# Special Class holographic header pill badge
+│       │   │   ├── foil_glare.png# Specular moving glare hotspot texture
+│       │   │   ├── foil_holo_a.png# Cosmos Holo left-biased diffraction & starbursts
+│       │   │   └── foil_holo_b.png# Cosmos Holo right-biased diffraction & starbursts
 │       │   ├── wall/             # Background textures and generators
 │       │   └── inventory/
 │       │       ├── types.ts      # TypeScript interfaces for Objekts and Members

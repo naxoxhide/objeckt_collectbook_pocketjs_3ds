@@ -79,7 +79,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     continuePrompt: "Continuar",
 
     specTitle: "ESPECIFICACIÓN DE OBJEKT",
-    memberLabel: "Miembro",
+    memberLabel: "Integrante",
     typeObjekt: (type: string) => `${type} Objekt`,
     noLabel: "No",
     prev: "◀ Anterior",
@@ -180,7 +180,7 @@ export function getLocalizedInformation(info: string, lang: Language): string {
   // Text 2: Special Class grid completion info
   if (info.includes("completing a grid")) {
     if (lang === "es") {
-      return "Obsequio por completar una cuadrícula 117-120 First Class en COSMO.";
+      return "Obsequio por completar un Grid 117-120 First Class en COSMO.";
     }
     if (lang === "ko") {
       return "COSMO에서 117-120 퍼스트 클래스 그리드 완성 시 지급.";

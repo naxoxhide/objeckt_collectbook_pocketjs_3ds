@@ -87,10 +87,12 @@ export function createInventoryStore(): InventoryStore {
   const [cardFlipped, setCardFlipped] = createSignal(false);
   const [lastAction, setLastAction] = createSignal("Ready");
 
-  // 3D Circle Pad / D-Pad tilt and foil shimmer
+  // 3D Circle Pad / D-Pad tilt and foil shimmer (Spring-damper physics inspired by hover-tilt)
   const [tiltX, setTiltX] = createSignal(0);
   const [tiltY, setTiltY] = createSignal(0);
   const [shimmerTick, setShimmerTick] = createSignal(0);
+  let velTiltX = 0;
+  let velTiltY = 0;
 
   // Filter cards by active member
   const activeMember = createMemo(() => MEMBERS[memberIdx()] ?? MEMBERS[0]);
@@ -200,30 +202,55 @@ export function createInventoryStore(): InventoryStore {
       setTimeStr(`${h}:${m}`);
     }
 
-    // 3. Circle Pad analog + D-Pad handling
+    // 3. Circle Pad analog + D-Pad handling (Spring-damper physics inspired by hover-tilt)
     if (inspectOpen()) {
       let ax = analogX(); // -1..1 (left/right)
       let ay = analogY(); // -1..1 (up/down; down positive)
 
-      // Allow D-Pad to also tilt & move Objekt in 3D
-      if (buttons & BTN.LEFT) ax = -1;
-      else if (buttons & BTN.RIGHT) ax = 1;
-      if (buttons & BTN.UP) ay = -1;
-      else if (buttons & BTN.DOWN) ay = 1;
+      // D-Pad vector normalization for smooth diagonals (hover-tilt normalized coordinates)
+      let dpadX = 0;
+      let dpadY = 0;
+      if (buttons & BTN.LEFT) dpadX -= 1;
+      if (buttons & BTN.RIGHT) dpadX += 1;
+      if (buttons & BTN.UP) dpadY -= 1;
+      if (buttons & BTN.DOWN) dpadY += 1;
 
-      // When stick/d-pad tilts right (ax > 0) -> card rotates around Y
-      // When stick/d-pad tilts up (ay < 0) -> card rotates around X (tips back)
-      const targetTiltX = -ay * 18;
-      const targetTiltY = ax * 18;
-      // Silky smooth lerp interpolation (spring-back on release)
-      setTiltX((prev) => prev + (targetTiltX - prev) * 0.22);
-      setTiltY((prev) => prev + (targetTiltY - prev) * 0.22);
+      if (dpadX !== 0 || dpadY !== 0) {
+        const len = Math.hypot(dpadX, dpadY);
+        ax = dpadX / len;
+        ay = dpadY / len;
+      }
+
+      // Max tilt angle (degrees)
+      const MAX_TILT = 20;
+      const targetTiltX = -ay * MAX_TILT;
+      const targetTiltY = ax * MAX_TILT;
+
+      // Spring-damper physics model (Hooke's law with damping factor)
+      // Produces subtle elastic overshoot on release and organic responsiveness
+      const stiffness = 0.20;
+      const damping = 0.72;
+
+      const forceX = (targetTiltX - tiltX()) * stiffness;
+      velTiltX = (velTiltX + forceX) * damping;
+      const nextX = tiltX() + velTiltX;
+      setTiltX(Math.abs(nextX) < 0.02 && Math.abs(velTiltX) < 0.02 ? 0 : nextX);
+
+      const forceY = (targetTiltY - tiltY()) * stiffness;
+      velTiltY = (velTiltY + forceY) * damping;
+      const nextY = tiltY() + velTiltY;
+      setTiltY(Math.abs(nextY) < 0.02 && Math.abs(velTiltY) < 0.02 ? 0 : nextY);
+
       setShimmerTick((prev) => (prev + 1) % 360);
     } else {
-      // Re-center tilt when exiting inspect mode
-      if (tiltX() !== 0 || tiltY() !== 0) {
-        setTiltX((prev) => (Math.abs(prev) < 0.1 ? 0 : prev * 0.6));
-        setTiltY((prev) => (Math.abs(prev) < 0.1 ? 0 : prev * 0.6));
+      // Re-center spring physics when outside inspect mode
+      if (tiltX() !== 0 || tiltY() !== 0 || velTiltX !== 0 || velTiltY !== 0) {
+        velTiltX = (velTiltX - tiltX() * 0.20) * 0.72;
+        velTiltY = (velTiltY - tiltY() * 0.20) * 0.72;
+        const nextX = tiltX() + velTiltX;
+        const nextY = tiltY() + velTiltY;
+        setTiltX(Math.abs(nextX) < 0.02 && Math.abs(velTiltX) < 0.02 ? 0 : nextX);
+        setTiltY(Math.abs(nextY) < 0.02 && Math.abs(velTiltY) < 0.02 ? 0 : nextY);
       }
       // Circle Pad analog left/right with dead-zone and cooldown for carousel
       const stickX = analogX();

@@ -26,7 +26,7 @@ bun run shot --host 192.168.1.20 \
   --out shells/3ds/media/hw/tiled.png
 ```
 
-That is how `media/hw/` was made. It is honest about what it is: those are
+That is how `media/hw/` was made: [tiled.png](../media/hw/tiled.png). It is honest about what it is: those are
 photographs of the machine, at the panel's own 400×240 and 320×240, with the
 console's own RTC in the bar.
 

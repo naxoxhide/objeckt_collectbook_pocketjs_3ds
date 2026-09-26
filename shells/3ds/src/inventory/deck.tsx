@@ -96,7 +96,10 @@ export function DeckInventory(props: { store: InventoryStore }) {
           <View class="px-1 flex-row items-center justify-between">
             <Text class="text-xs font-bold text-black">{store.t().specTitle}</Text>
             <View class="px-1.5 py-0.5 rounded bg-black items-center justify-center">
-              <Text class="text-xs font-mono font-bold text-[#10b981]">
+              <Text
+                class="text-xs font-mono font-bold"
+                style={{ textColor: store.activeMember().color }}
+              >
                 {card().number}
               </Text>
             </View>
@@ -135,17 +138,11 @@ export function DeckInventory(props: { store: InventoryStore }) {
               </View>
             </View>
 
-            {/* Row 3: Type & Number */}
+            {/* Row 3: Type */}
             <View class="flex-row items-center justify-between">
               <View class="flex-row items-center gap-1">
                 <Text class="text-xs font-bold text-gray-500">{store.t().type}:</Text>
                 <Text class="text-xs font-bold text-black">{store.t().typeObjekt(card().type)}</Text>
-              </View>
-              <View class="flex-row items-center gap-1">
-                <Text class="text-xs font-bold text-gray-500">{store.t().noLabel}:</Text>
-                <Text class="text-xs font-mono font-bold text-[#10b981]">
-                  {card().number}
-                </Text>
               </View>
             </View>
           </View>
@@ -159,7 +156,10 @@ export function DeckInventory(props: { store: InventoryStore }) {
           {/* Information Section with Indicator and Wrapped Lines */}
           <View class="flex-col px-1 gap-0.5">
             <View class="flex-row items-center gap-1.5">
-              <View class="w-[6] h-[6] rounded-full bg-[#10b981]" />
+              <View
+                class="w-[6] h-[6] rounded-full"
+                style={{ bgColor: store.activeMember().color }}
+              />
               <Text class="text-xs font-bold text-gray-600">{store.t().information}:</Text>
             </View>
             <View class="px-2 py-1 rounded bg-gray-50 border border-gray-200 flex-col gap-0.5">

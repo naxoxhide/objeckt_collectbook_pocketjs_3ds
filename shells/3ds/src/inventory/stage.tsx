@@ -194,15 +194,51 @@ function InspectModal(props: { store: InventoryStore }) {
   const isSpecial = () => card().class === "Special";
   const t = props.store.t;
 
-  // Holographic Foil Dynamic Lighting (Citro3D GPU Additive Blending)
-  // Maps 3D tilt (-18..+18 deg) to cross-fade between left-gleam and right-gleam foil textures
-  const tiltFactor = () => (props.store.tiltY() + 18) / 36; // 0 (tilted left) to 1 (tilted right)
-  const baseFoilIntensity = () => {
-    const tiltMag = (Math.abs(props.store.tiltX()) + Math.abs(props.store.tiltY())) / 36;
-    return 0.40 + tiltMag * 0.45;
+  // Holographic Foil Dynamic Lighting & Polar Tilt (Adapted from simeydotme/hover-tilt)
+  // 1. Normalized delta coordinates (-1 to 1) from 3D tilt
+  const normX = () => props.store.tiltY() / 20; // right positive
+  const normY = () => -props.store.tiltX() / 20; // up positive
+
+  // 2. Distance from center (0 to 1)
+  const tiltDistance = () => Math.min(1, Math.hypot(normX(), normY()));
+
+  // 3. Incident light angle in degrees (0 to 360, 0deg = top/up, clockwise)
+  const lightAngle = () => {
+    const x = normX();
+    const y = normY();
+    if (Math.abs(x) < 0.01 && Math.abs(y) < 0.01) return 180;
+    let deg = Math.atan2(y, x) * (180 / Math.PI) + 90;
+    if (deg < 0) deg += 360;
+    return deg;
   };
-  const foilOpacityA = () => baseFoilIntensity() * Math.max(0.05, 1.0 - tiltFactor() * 0.85);
-  const foilOpacityB = () => baseFoilIntensity() * Math.max(0.05, 0.15 + tiltFactor() * 0.85);
+
+  // 4. Dynamic elevation on tilt (translateZ from 15px resting up to 24px on tilt)
+  const dynamicZ = () => 15 + tiltDistance() * 9;
+
+  // 5. Polar sweep for Special Class foil textures:
+  // Layer A reflects when tilted left/up; Layer B reflects when tilted right/down
+  const foilOpacityA = () => {
+    const dist = tiltDistance();
+    const rad = (lightAngle() * Math.PI) / 180;
+    const projection = Math.sin(rad); // +1 when light is pointing to right, -1 to left
+    const factor = Math.max(0.08, 0.5 - projection * 0.5); // high when tilted left
+    return 0.28 + dist * 0.58 * factor;
+  };
+
+  const foilOpacityB = () => {
+    const dist = tiltDistance();
+    const rad = (lightAngle() * Math.PI) / 180;
+    const projection = Math.sin(rad);
+    const factor = Math.max(0.08, 0.5 + projection * 0.5); // high when tilted right
+    return 0.28 + dist * 0.58 * factor;
+  };
+
+  // 6. Specular Glare Hotspot (Adapted from pokemon-cards-css .card__glare)
+  // Glare position moves smoothly across the card face with tilt
+  const glareX = () => normX() * 14;
+  const glareY = () => normY() * 20;
+  // Fresnel reflectance curve: subtle at rest (~0.10), flaring up to ~0.55 at maximum tilt
+  const glareOpacity = () => 0.10 + tiltDistance() * 0.45;
 
   const closeLabel = () => {
     const lang = props.store.lang();
@@ -228,25 +264,30 @@ function InspectModal(props: { store: InventoryStore }) {
       </View>
 
       {/* 2. Header Badge (Top Right: Special Class / Class) */}
-      <View
-        class={
-          isSpecial()
-            ? "absolute right-3 top-2.5 h-[20] px-2.5 rounded-[10] bg-[#f59e0b] border border-white items-center justify-center shadow z-20"
-            : "absolute right-3 top-2.5 h-[20] px-2.5 rounded-[10] bg-black border border-white items-center justify-center shadow z-20"
-        }
-      >
+      <View class="absolute right-3 top-2.5 h-[20] px-2.5 rounded-[10] border border-white items-center justify-center shadow z-20 overflow-hidden">
+        <Show
+          when={isSpecial()}
+          fallback={<View class="absolute inset-0 bg-black" />}
+        >
+          {/* Holographic Prismatic Background */}
+          <Image
+            src="cards/badge_holo.png"
+            class="absolute inset-0 w-full h-full"
+          />
+        </Show>
+        {/* Class Title with High Legibility */}
         <Text
           class={
             isSpecial()
-              ? "text-xs font-bold text-black"
-              : "text-xs font-bold text-white"
+              ? "text-xs font-bold text-black z-10"
+              : "text-xs font-bold text-white z-10"
           }
         >
           {t().classLabel(card().class)}
         </Text>
       </View>
 
-      {/* 3. Centered Large Objekt (Isolated 3D Perspective Context) */}
+      {/* 3. Centered Large Objekt (3D Tilt Perspective Context) */}
       <View
         debugName="Card3DViewport"
         class="absolute left-[141] top-[29] w-[118] h-[182] items-center justify-center"
@@ -257,17 +298,11 @@ function InspectModal(props: { store: InventoryStore }) {
           style={{
             rotateX: props.store.tiltX(),
             rotateY: props.store.tiltY(),
-            translateZ: 15,
+            translateZ: dynamicZ(),
           }}
         >
-          {/* Card Chassis with border */}
-          <View
-            class={
-              isSpecial()
-                ? "w-[118] h-[182] rounded-lg overflow-hidden border-2 border-[#f59e0b] shadow-lg relative bg-[#181a1f]"
-                : "w-[118] h-[182] rounded-lg overflow-hidden border-2 border-white shadow-lg relative bg-[#181a1f]"
-            }
-          >
+          {/* Card Container with clean transparent rounded corners */}
+          <View class="w-[118] h-[182] relative">
             {/* Real Objekt Image (front or back art) */}
             <Image
               src={props.store.cardFlipped() ? card().imageBack : card().imageFront}
@@ -276,7 +311,7 @@ function InspectModal(props: { store: InventoryStore }) {
 
             {/* Special Class Holographic Foil Texture Layers (Native GPU Additive Blending) */}
             <Show when={isSpecial()}>
-              {/* Foil Layer A: Left-biased Prismatic Rainbow Sheen & Stardust Sparkles */}
+              {/* Foil Layer A: Left-biased Prismatic Rainbow Sheen & Cosmos 4-Point Starbursts */}
               <Image
                 src="cards/foil_holo_a.png"
                 class="w-full h-full absolute inset-0"
@@ -285,7 +320,7 @@ function InspectModal(props: { store: InventoryStore }) {
                 }}
               />
 
-              {/* Foil Layer B: Right-biased Prismatic Rainbow Sheen & Stardust Sparkles */}
+              {/* Foil Layer B: Right-biased Prismatic Rainbow Sheen & Cosmos 4-Point Starbursts */}
               <Image
                 src="cards/foil_holo_b.png"
                 class="w-full h-full absolute inset-0"
@@ -294,8 +329,16 @@ function InspectModal(props: { store: InventoryStore }) {
                 }}
               />
 
-              {/* Foil Layer C: Subtle Golden Shimmer Rim */}
-              <View class="absolute inset-0 border border-[#fbbf24] opacity-50" />
+              {/* Specular Glare: Dynamic Moving Light Hotspot (.card__glare from pokemon-cards-css) */}
+              <Image
+                src="cards/foil_glare.png"
+                class="w-full h-full absolute inset-0"
+                style={{
+                  translateX: glareX(),
+                  translateY: glareY(),
+                  opacity: glareOpacity(),
+                }}
+              />
             </Show>
           </View>
         </View>
