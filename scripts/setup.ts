@@ -48,3 +48,14 @@ if (!existsSync(styles)) {
 }
 
 console.log("Pocket Shell setup: runtime links ready");
+
+const patchFile = resolve(ROOT, "patches/naked_eyes_3ds.patch");
+if (existsSync(patchFile)) {
+  const check = Bun.spawnSync(["git", "-C", "vendor/pocketjs", "apply", "--check", patchFile]);
+  if (check.exitCode === 0) {
+    const apply = Bun.spawnSync(["git", "-C", "vendor/pocketjs", "apply", patchFile]);
+    if (apply.exitCode === 0) {
+      console.log("Pocket Shell setup: applied naked_eyes_3ds patch to vendor/pocketjs");
+    }
+  }
+}

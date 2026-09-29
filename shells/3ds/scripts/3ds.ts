@@ -28,6 +28,14 @@ mkdirSync(PLAN_DIR, { recursive: true });
 const planPath = resolve(PLAN_DIR, `${plan.app.output}.3ds.plan.json`);
 writeFileSync(planPath, `${JSON.stringify(plan, null, 2)}\n`);
 
+const patchFile = resolve(PROJECT_ROOT, "patches/naked_eyes_3ds.patch");
+if (existsSync(patchFile)) {
+  const check = Bun.spawnSync(["git", "-C", VENDOR, "apply", "--check", patchFile]);
+  if (check.exitCode === 0) {
+    Bun.spawnSync(["git", "-C", VENDOR, "apply", patchFile]);
+  }
+}
+
 await build3ds([`--plan=${planPath}`, `--project-root=${PROJECT_ROOT}`, ...process.argv.slice(2)]);
 
 mkdirSync(DIST_3DS, { recursive: true });
