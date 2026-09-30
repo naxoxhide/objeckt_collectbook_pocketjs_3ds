@@ -30,6 +30,19 @@ That is how `media/hw/` was made: [tiled.png](../media/hw/tiled.png). It is hone
 photographs of the machine, at the panel's own 400×240 and 320×240, with the
 console's own RTC in the bar.
 
+## On-Device SD Screenshots
+
+Directly on the Nintendo 3DS (without requiring network connection or dev wire):
+- **Hardware Button Chord**: Press `START + SELECT` (or `L + R + Y`) simultaneously.
+- **JavaScript API**: Call `Native.takeScreenshot()` or `ui.takeScreenshot()`.
+
+The host runtime extracts the active framebuffers using Citro3D display transfers, un-rotates the panel's native portrait buffer (240×400 $\to$ 400×240 landscape), and streams 24-bit uncompressed BGR888 BMP files directly to `sdmc:/screenshots/`:
+- `screenshot_YYYYMMDD_HHMMSS_top_left.bmp` (400×240, Top screen left eye)
+- `screenshot_YYYYMMDD_HHMMSS_top_right.bmp` (400×240, Top screen right eye / Naked-Eye 3D)
+- `screenshot_YYYYMMDD_HHMMSS_bottom.bmp` (320×240, Bottom touchscreen)
+
+Because BMP is uncompressed, there is zero CPU overhead and near-instant write times (~50ms) on the Old 3DS.
+
 ## Animations: the frame recorder
 
 A 60 Hz shell cannot be filmed over a network — the wire delivers a few
