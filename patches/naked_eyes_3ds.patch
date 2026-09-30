@@ -1,12 +1,16 @@
 diff --git a/hosts/3ds/src/gfx.c b/hosts/3ds/src/gfx.c
-index bec17773..7bd4b128 100644
+index bec17773..59a95ffa 100644
 --- a/hosts/3ds/src/gfx.c
 +++ b/hosts/3ds/src/gfx.c
-@@ -889,13 +889,28 @@ void gfx_finish_frame(void) {
+@@ -889,13 +889,32 @@ void gfx_finish_frame(void) {
    GSPGPU_FlushDataCache(vertices, vertex_count * sizeof *vertices);
  }
  
 -void gfx_draw_surface(uint32_t surface) {
++/**
++ * Render a prepared surface with horizontal stereoscopic parallax (in pixels).
++ * Modifies the projection matrix bounds: negative offset for left eye, positive for right eye.
++ */
 +void gfx_draw_surface_stereo(uint32_t surface, float eye_offset) {
    if (!initialized || surface >= MAX_SURFACES) return;
    const SurfaceBatch *batch = &surfaces[surface];
@@ -33,7 +37,7 @@ index bec17773..7bd4b128 100644
    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
    C3D_CullFace(GPU_CULL_NONE);
    C3D_AlphaBlend(
-@@ -943,6 +958,10 @@ void gfx_draw_surface(uint32_t surface) {
+@@ -943,6 +962,10 @@ void gfx_draw_surface(uint32_t surface) {
    if (scissored) C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
  }
  
@@ -45,19 +49,23 @@ index bec17773..7bd4b128 100644
  // lifecycle
  // ---------------------------------------------------------------------------
 diff --git a/hosts/3ds/src/gfx.h b/hosts/3ds/src/gfx.h
-index 1314e64c..b5a7d1ad 100644
+index 1314e64c..14b4a39f 100644
 --- a/hosts/3ds/src/gfx.h
 +++ b/hosts/3ds/src/gfx.h
-@@ -25,6 +25,7 @@ bool gfx_prepare_surface(
+@@ -25,6 +25,11 @@ bool gfx_prepare_surface(
  );
  void gfx_finish_frame(void);
  void gfx_draw_surface(uint32_t surface);
++/**
++ * Draw a prepared surface with a horizontal stereoscopic parallax shift (in pixels).
++ * Negative shift projects the left-eye view; positive shift projects the right-eye view.
++ */
 +void gfx_draw_surface_stereo(uint32_t surface, float eye_offset);
  /* Retire every guest-owned image/font texture at a GPU-idle frame boundary.
   * Shader, white texture and vertex arena remain process-owned. */
  void gfx_reset_resources(void);
 diff --git a/hosts/3ds/src/input.c b/hosts/3ds/src/input.c
-index 35836761..5b6557a9 100644
+index 35836761..ae092b79 100644
 --- a/hosts/3ds/src/input.c
 +++ b/hosts/3ds/src/input.c
 @@ -37,9 +37,12 @@
@@ -73,7 +81,18 @@ index 35836761..5b6557a9 100644
  
  void input_init(void) {
  #ifndef POCKETJS_CAPTURE
-@@ -87,6 +90,12 @@ int32_t input_buttons(void) {
+@@ -74,6 +77,10 @@ static const struct {
+   { KEY_DRIGHT, BTN_RIGHT },
+ };
+ 
++/*
++ * Reads hardware buttons and filters reserved runtime chords (reload, devmenu,
++ * exit, screenshot) so they do not leak into the guest application.
++ */
+ int32_t input_buttons(void) {
+   uint32_t held = hidKeysHeld();
+   /* Shared-memory scan only; service initialization happens before UI boot. */
+@@ -87,6 +94,12 @@ int32_t input_buttons(void) {
    if ((held & RUNTIME_EXIT_KEYS) == RUNTIME_EXIT_KEYS) {
      held &= ~RUNTIME_EXIT_KEYS;
    }
@@ -86,19 +105,25 @@ index 35836761..5b6557a9 100644
    int32_t buttons = 0;
    for (size_t index = 0; index < sizeof KEY_MAP / sizeof KEY_MAP[0]; index += 1) {
      if (held & KEY_MAP[index].key) buttons |= KEY_MAP[index].button;
-@@ -169,3 +178,25 @@ bool input_offload_exit_requested(void) {
+@@ -169,3 +182,31 @@ bool input_offload_exit_requested(void) {
    const uint32_t keys = KEY_L | KEY_R | KEY_START;
    return (hidKeysHeld() & keys) == keys;
  }
 +
++/* Returns current 3DS hardware depth slider position [0.0 = 2D, 1.0 = max depth]. */
 +float input_slider3d(void) {
 +  return osGet3DSliderState();
 +}
 +
++/* Requests a screenshot capture on the next frame (triggered via JS HostTakeScreenshot). */
 +void input_request_screenshot(void) {
 +  screenshot_requested_flag = true;
 +}
 +
++/*
++ * Checks if a screenshot was triggered, either via hardware chord
++ * (START+SELECT or L+R+Y) or programmatically via input_request_screenshot().
++ */
 +bool input_screenshot_requested(void) {
 +  if (screenshot_requested_flag) {
 +    screenshot_requested_flag = false;
@@ -129,7 +154,7 @@ index 896ae32c..f58ba320 100644
  
  #endif
 diff --git a/hosts/3ds/src/main.c b/hosts/3ds/src/main.c
-index 435087ee..5f9ebbf3 100644
+index 435087ee..c0ea7c84 100644
 --- a/hosts/3ds/src/main.c
 +++ b/hosts/3ds/src/main.c
 @@ -27,6 +27,7 @@
@@ -152,7 +177,7 @@ index 435087ee..5f9ebbf3 100644
  
  static const u32 DISPLAY_TRANSFER_FLAGS =
    GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
-@@ -104,6 +106,163 @@ static void read_surface_rgb8(
+@@ -104,6 +106,173 @@ static void read_surface_rgb8(
    GSPGPU_InvalidateDataCache(out, (s32)((size_t)width * height * 3));
  }
  
@@ -179,6 +204,12 @@ index 435087ee..5f9ebbf3 100644
 +
 +_Static_assert(sizeof(BmpHeader) == 54, "BmpHeader must be 54 bytes");
 +
++/*
++ * Exports linear framebuffer bytes as a 24-bit uncompressed BGR888 BMP file.
++ * Handles 3DS panel coordinate transposition from portrait column-major
++ * hardware storage (240x400) to standard landscape row-major (400x240) in
++ * bottom-up order required by the BMP standard.
++ */
 +static bool write_bmp_surface(const char *path, const uint8_t *src_linear, uint32_t width, uint32_t height) {
 +  FILE *file = fopen(path, "wb");
 +  if (file == NULL) return false;
@@ -240,6 +271,10 @@ index 435087ee..5f9ebbf3 100644
 +  return ok;
 +}
 +
++/*
++ * Captures all active render targets (Top Left eye, Top Right eye, and Bottom
++ * screen) and saves them directly to SD card (sdmc:/screenshots/) with timestamp.
++ */
 +static bool capture_screenshot_sd(
 +  C3D_RenderTarget *top_left,
 +  C3D_RenderTarget *top_right,
@@ -316,7 +351,7 @@ index 435087ee..5f9ebbf3 100644
  // ---------------------------------------------------------------------------
  // capture build (tests/e2e/azahar.ts)
  // ---------------------------------------------------------------------------
-@@ -670,6 +829,8 @@ static void install_candidate(
+@@ -670,6 +839,8 @@ static void install_candidate(
  
  int main(void) {
    gfxInitDefault();
@@ -325,7 +360,7 @@ index 435087ee..5f9ebbf3 100644
    /* No-op on an Old 3DS; on a New 3DS it unlocks the faster clock and the
     * extra cache, which the QuickJS guest feels directly. */
    osSetSpeedupEnable(true);
-@@ -685,16 +846,23 @@ int main(void) {
+@@ -685,16 +856,23 @@ int main(void) {
      GPU_RB_RGBA8,
      GPU_RB_DEPTH24_STENCIL8
    );
@@ -350,7 +385,7 @@ index 435087ee..5f9ebbf3 100644
    C3D_RenderTargetSetOutput(auxiliary_target, GFX_BOTTOM, GFX_LEFT, DISPLAY_TRANSFER_FLAGS);
  
    if (R_FAILED(romfsInit())) fail("romfsInit failed: the .3dsx has no romfs");
-@@ -961,12 +1129,25 @@ int main(void) {
+@@ -961,12 +1139,25 @@ int main(void) {
      }
      gfx_finish_frame();
  
@@ -377,10 +412,11 @@ index 435087ee..5f9ebbf3 100644
      C3D_RenderTargetClear(auxiliary_target, C3D_CLEAR_ALL, 0x000000ff, 0);
      C3D_FrameDrawOn(auxiliary_target);
      C3D_SetViewport(0, 0, AUX_VIEW_H, AUX_VIEW_W);
-@@ -981,6 +1162,9 @@ int main(void) {
+@@ -981,6 +1172,10 @@ int main(void) {
        gfx_frame_vertices(),
        gfx_dropped_vertices()
      );
++    /* Save screenshots to SD card if requested via chord (START+SELECT, L+R+Y) or JS API. */
 +    if (input_screenshot_requested()) {
 +      capture_screenshot_sd(primary_target, primary_target_right, auxiliary_target);
 +    }
@@ -388,7 +424,7 @@ index 435087ee..5f9ebbf3 100644
        uint8_t *top_rgb = NULL;
        uint8_t *auxiliary_rgb = NULL;
 diff --git a/hosts/3ds/src/qjs.c b/hosts/3ds/src/qjs.c
-index d5110363..05190d16 100644
+index d5110363..53d303c2 100644
 --- a/hosts/3ds/src/qjs.c
 +++ b/hosts/3ds/src/qjs.c
 @@ -22,6 +22,7 @@
@@ -408,19 +444,21 @@ index d5110363..05190d16 100644
  } HostOperation;
  
  static JSRuntime *runtime;
-@@ -553,6 +556,11 @@ static JSValue host_operation(
+@@ -553,6 +556,13 @@ static JSValue host_operation(
          JS_FreeCString(ctx, text);
        }
        return JS_UNDEFINED;
 +    case HostGetSlider3D:
++      /* Returns hardware 3D depth slider value [0.0 = 2D, 1.0 = max 3D] to JS (ui.slider3D). */
 +      return JS_NewFloat64(ctx, (double)input_slider3d());
 +    case HostTakeScreenshot:
++      /* Triggers an asynchronous full-screen capture to sdmc:/screenshots/ (Native.takeScreenshot). */
 +      input_request_screenshot();
 +      return JS_TRUE;
    }
    return JS_UNDEFINED;
  }
-@@ -658,6 +666,10 @@ static void install_host(void) {
+@@ -658,6 +668,10 @@ static void install_host(void) {
    add_operation(ui, "svcOpen", 1, HostSvcOpen);
    add_operation(ui, "svcPoll", 0, HostSvcPoll);
    add_operation(ui, "svcSend", 1, HostSvcSend);
@@ -431,7 +469,7 @@ index d5110363..05190d16 100644
  
    /* Framework-owned host identity, from the build's -D defines rather than
     * literals that can drift. Bundles refuse to mount when they disagree. */
-@@ -738,6 +750,10 @@ static void install_host(void) {
+@@ -738,6 +752,10 @@ static void install_host(void) {
  
    /* JS_SetPropertyStr consumes ownership of `ui`. */
    JS_SetPropertyStr(context, global, "ui", ui);

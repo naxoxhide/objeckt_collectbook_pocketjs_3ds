@@ -113,7 +113,7 @@ The entire user interface dynamically adapts in real time across three supported
 | **Ⓧ Button** | **Inspect Objekt in 3D** | — | — |
 | **Ⓐ Button** | — | — | Cycle Language |
 | **START + SELECT** *(or **L + R + Y**)* | **Capture Screenshot to SD (`sdmc:/screenshots/`)** | **Capture Screenshot to SD** | **Capture Screenshot to SD** |
-| **Stylus (Touch)** | Tap member tabs, dossier, or buttons | Tap screen or button to dismiss/close | Select language pills directly |
+| **Stylus (Touch)** | Tap member tabs, dossier, or buttons | Tap screen or button to dismiss/close | - |
 | **L + R + START** | Exit to Homebrew Launcher | Exit to Homebrew Launcher | Exit to Homebrew Launcher |
 
 ---
