@@ -6,6 +6,31 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
 
 ---
 
+## Visual Showcase (Direct Hardware Captures)
+
+Images extracted directly from an **Old Nintendo 3DS XL** via the built-in native screenshot pipeline (`sdmc:/screenshots/`):
+
+<p align="center">
+  <img src="shells/3ds/media/hw/objekt-heejin.png" width="340" alt="HeeJin Objekt Carousel & Specification Dossier on Nintendo 3DS" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="shells/3ds/media/hw/objekt-kimlip.png" width="340" alt="Kim Lip Special Class Objekt on Nintendo 3DS" />
+</p>
+<p align="center">
+  <img src="shells/3ds/media/hw/objekt-inspect.png" width="340" alt="3D Inspect Mode Overlay on Nintendo 3DS" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="shells/3ds/media/hw/objekt-card-flip.png" width="340" alt="3D Card Back Flip with Member Signature on Nintendo 3DS" />
+</p>
+
+### Hardware Stereoscopic 3D (Dual-Eye Framebuffer Dump)
+
+Direct uncompressed 24-bit export of the left and right eye framebuffers driving the console's physical autostereoscopic parallax barrier (`GFX_TOP, GFX_LEFT` and `GFX_TOP, GFX_RIGHT`). Notice the horizontal perspective shift between both views:
+
+<p align="center">
+  <img src="shells/3ds/media/hw/objekt-stereo-pair.png" width="700" alt="Nintendo 3DS Autostereoscopic Parallax Barrier Framebuffers (Left Eye vs Right Eye)" />
+</p>
+
+---
+
 ## Highlights & Features
 
 ### Dual-Screen Interface
@@ -56,9 +81,18 @@ The entire user interface dynamically adapts in real time across three supported
 
 ---
 
+### On-Device Hardware Screenshot Pipeline
+- **Real-Time SD Card Capture**: Trigger an instant screen capture by pressing **`START + SELECT`** (or **`L + R + Y`**) at any time, or by invoking `Native.takeScreenshot()` from JavaScript.
+- **Citro3D GPU Display Transfer**: Bypasses post-swap blank framebuffers by untiling PICA200 render targets directly into linear memory via hardware DMA (`C3D_SyncDisplayTransfer` with `GX_TRANSFER_FMT_RGB8`).
+- **Mathematical 90° Panel Transposition**: Automatically un-rotates the 3DS panel's native portrait scanlines ($240 \times 400$) into bottom-up BMP rows ($400 \times 240$ and $320 \times 240$) with zero color-space conversion (direct BGR native alignment), achieving ~50 ms writes with zero CPU overhead on the Old 3DS ARM11.
+- **Stereoscopic 3D & Touchscreen Triple-Dump**: Saves Left Eye, Right Eye (with 3D parallax offset), and Bottom touchscreen simultaneously to `sdmc:/screenshots/screenshot_YYYYMMDD_HHMMSS_<view>.bmp`.
+
+---
+
 ## Controls
 
 | Input | In Carousel / Normal Mode | In 3D Inspect Mode (`Ⓧ`) | Inside Settings Modal (`Ⓨ`) |
+| :--- | :--- | :--- | :--- |
 | **3D Depth Slider** | **Adjust Naked-Eye 3D depth (2D to Deep 3D)** | **Adjust Naked-Eye 3D depth (2D to Deep 3D)** | Adjust Naked-Eye 3D depth |
 | **Circle Pad / Analog** | Page through Objekts (with deadzone) | **Tilt & move card in 3D** | — |
 | **D-Pad ◄ / ► / ▲ / ▼** | Navigate previous / next Objekt | **Tilt & move card in 3D** | Change Language |
@@ -67,6 +101,7 @@ The entire user interface dynamically adapts in real time across three supported
 | **Ⓑ Button** | Flip Card (Front / Back) | **Close Inspect Mode / Modal** | Close Settings modal |
 | **Ⓧ Button** | **Inspect Objekt in 3D** | — | — |
 | **Ⓐ Button** | — | — | Cycle Language |
+| **START + SELECT** *(or **L + R + Y**)* | **Capture Screenshot to SD (`sdmc:/screenshots/`)** | **Capture Screenshot to SD** | **Capture Screenshot to SD** |
 | **Stylus (Touch)** | Tap member tabs, dossier, or buttons | Tap screen or button to dismiss/close | Select language pills directly |
 | **L + R + START** | Exit to Homebrew Launcher | Exit to Homebrew Launcher | Exit to Homebrew Launcher |
 
