@@ -8,20 +8,27 @@ Browse, inspect, and organize official **ARTMS (Atom01)** digital photocards ("O
 
 ## Visual Showcase (Direct Hardware Captures)
 
-Images extracted directly from an **Old Nintendo 3DS XL** via the built-in native screenshot pipeline (`sdmc:/screenshots/`):
+Photographs and frame dumps extracted directly from an **Old Nintendo 3DS XL** via the built-in native screenshot pipeline (`sdmc:/screenshots/`):
 
+### 1. Dual-Screen Interface (Top Stage & Touch Deck)
 <p align="center">
   <img src="shells/3ds/media/hw/objekt-heejin.png" width="340" alt="HeeJin Objekt Carousel & Specification Dossier on Nintendo 3DS" />
   &nbsp;&nbsp;&nbsp;&nbsp;
   <img src="shells/3ds/media/hw/objekt-kimlip.png" width="340" alt="Kim Lip Special Class Objekt on Nintendo 3DS" />
 </p>
+
+### 2. 3D Inspection Mode & Card Flip (Front / Back)
+Press `Ⓧ` to inspect any photocard in full-screen 3D perspective with real-time Circle Pad / D-Pad tilt, and flip between the front portrait and back member signature with `Ⓨ` or `Ⓑ`:
+
 <p align="center">
-  <img src="shells/3ds/media/hw/objekt-inspect.png" width="340" alt="3D Inspect Mode Overlay on Nintendo 3DS" />
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="shells/3ds/media/hw/objekt-card-flip.png" width="340" alt="3D Card Back Flip with Member Signature on Nintendo 3DS" />
+  <img src="shells/3ds/media/hw/objekt-inspect.png" width="400" alt="3D Inspect Mode Dialog (Top Screen 400x240)" />
 </p>
 
-### Hardware Stereoscopic 3D (Dual-Eye Framebuffer Dump)
+<p align="center">
+  <img src="shells/3ds/media/hw/objekt-card-flip.png" width="700" alt="Interactive 3D Inspect Mode: Front (Anverso) and Back (Reverso) with Member Signature" />
+</p>
+
+### 3. Hardware Stereoscopic 3D (Dual-Eye Framebuffer Dump)
 
 Direct uncompressed 24-bit export of the left and right eye framebuffers driving the console's physical autostereoscopic parallax barrier (`GFX_TOP, GFX_LEFT` and `GFX_TOP, GFX_RIGHT`). Notice the horizontal perspective shift between both views:
 
@@ -56,11 +63,11 @@ Direct uncompressed 24-bit export of the left and right eye framebuffers driving
 
 - **Bottom Screen (320×240 Touchscreen)**:
   - **Stylus Member Selector**: Quick-tap tabs to jump directly between ARTMS members:
-    - 🐰 **HeeJin** (`#ec4899`)
-    - 🕊️ **HaSeul** (`#10b981`)
-    - 🦉 **Kim Lip** (`#ef4444`)
-    - 🐟 **JinSoul** (`#3b82f6`)
-    - 🦇 **Choerry** (`#8b5cf6`)
+    -  **HeeJin** (`#ec4899`)
+    -  **HaSeul** (`#10b981`)
+    -  **Kim Lip** (`#ef4444`)
+    -  **JinSoul** (`#3b82f6`)
+    -  **Choerry** (`#8b5cf6`)
   - **Studio Specification Dossier**: Modern dossier card detailing Artist, Member, Season, Class (First Class / Special Class), Objekt Type, and Serial Number, with active member theme color dynamically accenting the serial number badge.
   - **Adaptive Flex Information Section**: Structured flex box layout with visual weight character wrapping (`charVisualWeight`), ensuring descriptions never clip horizontally or vertically across all three supported languages.
   - **Touch Navigation Bar**: Large stylus-friendly buttons to page through cards effortlessly.
@@ -69,7 +76,11 @@ Direct uncompressed 24-bit export of the left and right eye framebuffers driving
 
 ### Multi-Language Localization (i18n)
 
-The entire user interface dynamically adapts in real time across three supported languages:
+The entire user interface dynamically adapts in real time across three supported languages, switchable at any time from the in-game Settings modal (`Ⓨ`):
+
+<p align="center">
+  <img src="shells/3ds/media/hw/objekt-settings-lang.png" width="400" alt="Nintendo 3DS System Settings Modal with Multi-Language Selection" />
+</p>
 
 | Language | Default on Boot | Character Rendering & Typography |
 | :--- | :---: | :--- |
