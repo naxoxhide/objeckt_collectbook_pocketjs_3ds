@@ -64,11 +64,16 @@ export interface InventoryStore {
   lastAction: () => string;
 }
 
+/**
+ * Creates the reactive state store and sets up the 60 FPS input & physics loop
+ * for the 3DS Objekt inventory application.
+ */
 export function createInventoryStore(): InventoryStore {
   // Always start in Spanish ("es")
   const [lang, setLang] = createSignal<Language>("es");
   const LANGS: Language[] = ["es", "en", "ko"];
 
+  /** Cycles active language sequentially across Spanish (es), English (en), and Korean (ko). */
   function cycleLang(dir: number) {
     const cur = LANGS.indexOf(lang());
     const next = (cur + dir + LANGS.length) % LANGS.length;
@@ -123,6 +128,7 @@ export function createInventoryStore(): InventoryStore {
     return list[idx];
   });
 
+  /** Updates active member with modulo wrapping and resets card carousel to the first card. */
   const setMemberIdx = (idx: number) => {
     const total = MEMBERS.length;
     const clamped = ((idx % total) + total) % total;
@@ -135,6 +141,7 @@ export function createInventoryStore(): InventoryStore {
   const nextMember = () => setMemberIdx(memberIdx() + 1);
   const prevMember = () => setMemberIdx(memberIdx() - 1);
 
+  /** Selects card index safely within member bounds and resets flip orientation. */
   const setCardIdxSafe = (idx: number) => {
     const len = memberCards().length;
     if (len === 0) return;

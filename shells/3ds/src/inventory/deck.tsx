@@ -8,6 +8,10 @@ import { MEMBERS } from "./data.ts";
 import { wrapText } from "./stage.tsx";
 import type { InventoryStore } from "./store.ts";
 
+/**
+ * Renders the bottom touchscreen (320x240) deck containing the Objekt dossier,
+ * stats, stylus touch controls, and member switcher.
+ */
 export function DeckInventory(props: { store: InventoryStore }) {
   const store = props.store;
   const card = () => store.activeCard();

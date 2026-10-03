@@ -521,7 +521,10 @@ function SettingsModal(props: { store: InventoryStore }) {
   );
 }
 
-/** Complete Top Screen Stage Component (400x240). */
+/**
+ * Renders the top 3D screen (400x240) stage containing the member bar,
+ * perspective Objekt carousel, action bar, and modal overlays.
+ */
 export function StageInventory(props: { store: InventoryStore }) {
   const store = props.store;
 

@@ -9,7 +9,6 @@ export interface MemberInfo {
   koreanName: string;
   color: string;       // Hex accent color
   badgeBg: string;     // Color for member pill
-  symbol: string;      // Symbol/emoji
   role: string;        // e.g. "LEADER • VOCAL"
 }
 
