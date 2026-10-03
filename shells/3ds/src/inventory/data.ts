@@ -10,7 +10,6 @@ export const MEMBERS: MemberInfo[] = [
     "koreanName": "희진",
     "color": "#ec4899",
     "badgeBg": "#fdf2f8",
-    "symbol": "🐰",
     "role": "ALL-ROUNDER"
   },
   {
@@ -19,7 +18,6 @@ export const MEMBERS: MemberInfo[] = [
     "koreanName": "하슬",
     "color": "#10b981",
     "badgeBg": "#ecfdf5",
-    "symbol": "🕊️",
     "role": "LEADER • VOCAL"
   },
   {
@@ -28,7 +26,6 @@ export const MEMBERS: MemberInfo[] = [
     "koreanName": "김립",
     "color": "#ef4444",
     "badgeBg": "#fef2f2",
-    "symbol": "🦉",
     "role": "LEAD VOCAL"
   },
   {
@@ -37,7 +34,6 @@ export const MEMBERS: MemberInfo[] = [
     "koreanName": "진솔",
     "color": "#3b82f6",
     "badgeBg": "#eff6ff",
-    "symbol": "🐟",
     "role": "MAIN RAPPER • VOCAL"
   },
   {
@@ -46,7 +42,6 @@ export const MEMBERS: MemberInfo[] = [
     "koreanName": "최리",
     "color": "#8b5cf6",
     "badgeBg": "#f5f3ff",
-    "symbol": "🦇",
     "role": "LEAD DANCER • VOCAL"
   }
 ];

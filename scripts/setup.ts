@@ -8,7 +8,7 @@
 // second time, which also guarantees one copy of Solid — two would give the
 // app a reactive graph the framework does not own.
 
-import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { ROOT, VENDOR } from "./paths.ts";
 
@@ -49,13 +49,23 @@ if (!existsSync(styles)) {
 
 console.log("Pocket Shell setup: runtime links ready");
 
-const patchFile = resolve(ROOT, "patches/naked_eyes_3ds.patch");
-if (existsSync(patchFile)) {
-  const check = Bun.spawnSync(["git", "-C", "vendor/pocketjs", "apply", "--check", patchFile]);
-  if (check.exitCode === 0) {
-    const apply = Bun.spawnSync(["git", "-C", "vendor/pocketjs", "apply", patchFile]);
-    if (apply.exitCode === 0) {
-      console.log("Pocket Shell setup: applied naked_eyes_3ds patch to vendor/pocketjs");
+const patchesDir = resolve(ROOT, "patches");
+if (existsSync(patchesDir)) {
+  const numberedPatches = readdirSync(patchesDir)
+    .filter((f) => /^\d{4}-.*\.patch$/.test(f))
+    .sort();
+
+  const toApply = numberedPatches.length > 0
+    ? numberedPatches.map((f) => resolve(patchesDir, f))
+    : [resolve(patchesDir, "naked_eyes_3ds.patch")].filter(existsSync);
+
+  for (const patch of toApply) {
+    const check = Bun.spawnSync(["git", "-C", "vendor/pocketjs", "apply", "--check", patch]);
+    if (check.exitCode === 0) {
+      const apply = Bun.spawnSync(["git", "-C", "vendor/pocketjs", "apply", patch]);
+      if (apply.exitCode === 0) {
+        console.log(`Pocket Shell setup: applied ${relative(ROOT, patch)} to vendor/pocketjs`);
+      }
     }
   }
 }
